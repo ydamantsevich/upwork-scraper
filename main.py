@@ -5,14 +5,14 @@ import csv
 from datetime import datetime
 from dotenv import load_dotenv
 
-# Загружаем переменные окружения из .env файла
+# Load environment variables from .env file
 load_dotenv()
 
 def get_cookies():
-    """Получаем все необходимые cookies из переменных окружения"""
+    """Get all required cookies from environment variables"""
     cookies = []
     
-    # Основные cookies для авторизации
+    # Main cookies for authorization
     required_cookies = {
         "master_access_token": os.getenv('UPWORK_MASTER_TOKEN'),
         "oauth2_global_js_token": os.getenv('UPWORK_OAUTH_TOKEN'),
@@ -20,11 +20,11 @@ def get_cookies():
         "__cf_bm": os.getenv('UPWORK_CF_BM')
     }
     
-    # Проверяем наличие основного токена
+    # Check for main token presence
     if not required_cookies["master_access_token"] or required_cookies["master_access_token"] == "your_master_token_here":
         raise ValueError("Please set your UPWORK_MASTER_TOKEN in .env file")
     
-    # Формируем список cookies
+    # Form cookies list
     for name, value in required_cookies.items():
         if value:
             cookies.append({
@@ -37,7 +37,7 @@ def get_cookies():
     return cookies
 
 def save_to_csv(jobs_data):
-    """Сохраняет данные в CSV файл"""
+    """Saves data to CSV file"""
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     filename = f"upwork_jobs_{timestamp}.csv"
     
@@ -46,41 +46,41 @@ def save_to_csv(jobs_data):
             writer = csv.DictWriter(file, fieldnames=jobs_data[0].keys())
             writer.writeheader()
             writer.writerows(jobs_data)
-        print(f"\nДанные сохранены в файл: {filename}")
-        print(f"Всего сохранено вакансий: {len(jobs_data)}")
+        print(f"\nData saved to file: {filename}")
+        print(f"Total jobs saved: {len(jobs_data)}")
     else:
-        print("Нет данных для сохранения")
+        print("No data to save")
 
 def main():
-    print("Начинаем сбор данных с Upwork...")
+    print("Starting data collection from Upwork...")
     
-    # Получаем cookies для авторизации
+    # Get cookies for authorization
     try:
         cookies = get_cookies()
-        print("Cookies успешно загружены")
+        print("Cookies successfully loaded")
     except ValueError as e:
-        print(f"Ошибка при загрузке cookies: {e}")
+        print(f"Error loading cookies: {e}")
         return
 
-    # Собираем все ссылки на вакансии
-    print("\nПолучаем список вакансий...")
+    # Collect all job links
+    print("\nGetting job list...")
     job_links = scrape_job_links(cookies)
     
     if not job_links:
-        print("Не удалось получить ссылки на вакансии")
+        print("Failed to get job links")
         return
     
-    print(f"Найдено вакансий: {len(job_links)}")
+    print(f"Found jobs: {len(job_links)}")
 
-    # Список для хранения всех вакансий
+    # List to store all jobs
     jobs_data = []
 
-    # Проходим по каждой ссылке и собираем данные о вакансии
-    print("\nСобираем детальную информацию о вакансиях...")
+    # Go through each link and collect job data
+    print("\nCollecting detailed job information...")
     for i, link in enumerate(job_links, 1):
-        print(f"Обработка вакансии {i}/{len(job_links)}...")
+        print(f"Processing job {i}/{len(job_links)}...")
         title, description, location = scrape_job_details(link, cookies)
-        # Структурируем данные для сохранения
+        # Structure data for saving
         job_data = {
             "url": f"https://www.upwork.com{link}",
             "title": title,
@@ -91,7 +91,7 @@ def main():
         }
         jobs_data.append(job_data)
     
-    # Сохраняем данные в CSV
+    # Save data to CSV
     save_to_csv(jobs_data)
 
 
@@ -99,6 +99,6 @@ if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:
-        print("\nРабота скрипта прервана пользователем")
+        print("\nScript execution interrupted by user")
     except Exception as e:
-        print(f"\nПроизошла ошибка: {e}")
+        print(f"\nAn error occurred: {e}")

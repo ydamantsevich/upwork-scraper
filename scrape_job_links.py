@@ -5,11 +5,18 @@ import random
 
 def scrape_job_links(cookies=None):
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=False)
+        browser = p.chromium.launch(
+            headless=True,
+            args=[
+                '--disable-blink-features=AutomationControlled',
+                '--no-sandbox',
+                '--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            ]
+        )
         context = browser.new_context()
         page = context.new_page()
         
-        # Устанавливаем все необходимые cookies для авторизации
+        # Set all required cookies for authorization
         if cookies:
             required_cookies = [
                 "master_access_token",
@@ -18,7 +25,7 @@ def scrape_job_links(cookies=None):
                 "__cf_bm"  # CloudFlare security cookie
             ]
             
-            # Проверяем наличие всех необходимых cookies
+            # Check for all required cookies
             for cookie_name in required_cookies:
                 if not any(c.get("name") == cookie_name for c in cookies):
                     print(f"Warning: Missing required cookie: {cookie_name}")
@@ -29,21 +36,38 @@ def scrape_job_links(cookies=None):
                     elif cookie_name == "__cf_bm":
                         print("  This is the CloudFlare protection cookie, it expires every 30 minutes")
             
-            # Устанавливаем cookies
+            # Set cookies
             context.add_cookies(cookies)
         
-        # Небольшая пауза перед загрузкой страницы
+        # Small pause before loading the page
         time.sleep(random.uniform(1.0, 2.0))
         
-        page.goto(
-            "https://www.upwork.com/nx/search/jobs/?amount=5000-&category2_uid=531770282580668418&hourly_rate=50-&location=Europe,Northern%20America,Israel,United%20Kingdom&per_page=10&sort=recency&t=0,1"
-        )
+        try:
+            response = page.goto(
+                "https://www.upwork.com/nx/search/jobs/?amount=5000-&category2_uid=531770282580668418&hourly_rate=50-&location=Europe,Northern%20America,Israel,United%20Kingdom&per_page=20&sort=recency&t=0,1"
+            )
+            
+            if response.status != 200:
+                print(f"Warning: Page returned status code {response.status}")
+                
+            # Check for CAPTCHA or other blocking elements
+            if page.query_selector("div[class*='captcha']") or page.query_selector("div[class*='security-check']"):
+                print("Warning: Detected possible CAPTCHA or security check page")
+                page.screenshot(path="captcha_screenshot.png")
+                print("Screenshot saved as captcha_screenshot.png")
+                raise Exception("Security check or CAPTCHA detected")
+                
+            # Wait for page to load with increased timeout
+            print("Waiting for job listings to load...")
+            page.wait_for_selector(".air3-link", timeout=60000)  # Increase timeout to 60 seconds
+            time.sleep(random.uniform(1.0, 2.0))
+            
+        except Exception as e:
+            print(f"Error occurred: {str(e)}")
+            browser.close()
+            raise
 
-        # Ждем загрузки страницы
-        page.wait_for_selector(".air3-link")
-        time.sleep(random.uniform(1.0, 2.0))
-
-        # Собираем все ссылки на вакансии
+        # Collect all job links
         job_links = page.query_selector_all("a.air3-link")
         links = [link.get_attribute("href") for link in job_links]
 
@@ -52,7 +76,7 @@ def scrape_job_links(cookies=None):
 
 
 if __name__ == "__main__":
-    # Пример структуры cookies для тестирования
+    # Example cookies structure for testing
     test_cookies = [
         {
             "name": "master_access_token",
