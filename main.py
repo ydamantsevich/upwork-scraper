@@ -12,6 +12,7 @@ from dotenv import load_dotenv
 import time
 import random
 import sys
+from playwright.sync_api import sync_playwright
 
 # Load environment variables from .env file
 load_dotenv()
@@ -78,43 +79,56 @@ def process_in_progress_jobs(csv_filename):
         reader = csv.DictReader(file)
         rows = list(reader)
 
-        for row in rows:
-            if row["in_progress_links"]:
-                parent_url = row["url"]
-                in_progress_links = row["in_progress_links"].split(" ; ")
-                print(f"\nProcessing in-progress jobs for {parent_url}")
+        with sync_playwright() as p:
+            browser = p.chromium.launch(
+                headless=True,
+                args=[
+                    "--disable-blink-features=AutomationControlled",
+                    "--no-sandbox",
+                    "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                ],
+            )
 
-                for i, link in enumerate(in_progress_links, 1):
-                    if not link:
-                        continue
-                    print(f"Processing in-progress job {i}/{len(in_progress_links)}")
+            for row in rows:
+                if row["in_progress_links"]:
+                    parent_url = row["url"]
+                    in_progress_links = row["in_progress_links"].split(" ; ")
+                    print(f"\nProcessing in-progress jobs for {parent_url}")
 
-                    try:
-                        # Get job details with retries and timeouts
-                        title, description = scrape_in_progress_job(link, cookies)
-                        if (
-                            title
-                            and description
-                            and title != "Title not found"
-                            and description != "Description not found"
-                        ):
-                            # Update CSV with details
-                            update_csv_with_details(
-                                parent_url, link, title, description, csv_filename
+                    for i, link in enumerate(in_progress_links, 1):
+                        if not link:
+                            continue
+                        print(f"Processing in-progress job {i}/{len(in_progress_links)}")
+
+                        try:
+                            # Get job details with retries and timeouts
+                            title, description = scrape_in_progress_job(
+                                link, cookies, browser
                             )
-                            print(f"Updated details for {link}")
-                        else:
-                            print(f"Failed to get valid details for {link}")
+                            if (
+                                title
+                                and description
+                                and title != "Title not found"
+                                and description != "Description not found"
+                            ):
+                                # Update CSV with details
+                                update_csv_with_details(
+                                    parent_url, link, title, description, csv_filename
+                                )
+                                print(f"Updated details for {link}")
+                            else:
+                                print(f"Failed to get valid details for {link}")
 
-                        # Add delay between jobs
-                        time.sleep(random.uniform(15, 30))
+                            # Add delay between jobs
+                            time.sleep(random.uniform(15, 30))
 
-                    except Exception as e:
-                        print(f"Error processing in-progress job {link}: {e}")
-                        continue
+                        except Exception as e:
+                            print(f"Error processing in-progress job {link}: {e}")
+                            continue
 
-                # Add longer delay between parent jobs
-                time.sleep(random.uniform(30, 60))
+                    # Add longer delay between parent jobs
+                    time.sleep(random.uniform(30, 60))
+            browser.close()
 
 
 def scrape_parent_jobs():

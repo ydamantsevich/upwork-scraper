@@ -60,90 +60,87 @@ def find_in_progress_links(page, max_retries=3):
     return in_progress_links
 
 
-def scrape_in_progress_job(url, cookies, max_retries=3):
-    """Scrape details for a single in-progress job with retries"""
-    with sync_playwright() as p:
-        browser = p.chromium.launch(
-            headless=False,
-            args=[
-                "--disable-blink-features=AutomationControlled",
-                "--no-sandbox",
-                "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            ],
-        )
-        context = browser.new_context()
-        page = context.new_page()
+def scrape_in_progress_job(url, cookies, browser=None, max_retries=3):
+    """Scrape details for a single in-progress job with retries, reusing browser instance"""
+    if not browser:
+        with sync_playwright() as p:
+            browser = p.chromium.launch(
+                headless=True,
+                args=[
+                    "--disable-blink-features=AutomationControlled",
+                    "--no-sandbox",
+                    "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                ],
+            )
+    context = browser.new_context()
+    page = context.new_page()
 
-        try:
-            if cookies:
-                context.add_cookies(cookies)
+    try:
+        if cookies:
+            context.add_cookies(cookies)
 
-            for attempt in range(max_retries):
-                try:
-                    time.sleep(random.uniform(2.0, 3.0))
-                    response = page.goto(f"https://www.upwork.com{url}")
+        for attempt in range(max_retries):
+            try:
+                time.sleep(random.uniform(3.0, 5.0))  # Increased delay
+                response = page.goto(f"https://www.upwork.com{url}")
 
-                    if response.status != 200:
-                        print(f"Warning: Page returned status code {response.status}")
-                        continue
+                if response.status != 200:
+                    print(f"Warning: Page returned status code {response.status}")
+                    continue
 
-                    if page.query_selector(
-                        "div[class*='captcha']"
-                    ) or page.query_selector("div[class*='security-check']"):
-                        print(
-                            "Warning: Detected possible CAPTCHA or security check page"
-                        )
-                        page.screenshot(
-                            path=f"captcha_progress_screenshot_{attempt}.png"
-                        )
-                        if attempt < max_retries - 1:
-                            time.sleep(random.uniform(5.0, 10.0))
-                            continue
-                        raise Exception("Security check or CAPTCHA detected")
-
-                    # Wait for title with increased timeout
-                    title_element = page.wait_for_selector(
-                        ".job-details-card .flex-1", timeout=30000
-                    )
-                    time.sleep(random.uniform(1.0, 2.0))
-
-                    # Wait for description with separate timeout
-                    description_element = page.wait_for_selector(
-                        "p.text-body-sm", timeout=30000
-                    )
-
-                    title = (
-                        title_element.inner_text()
-                        if title_element
-                        else "Title not found"
-                    )
-                    description = (
-                        description_element.inner_text()
-                        if description_element
-                        else "Description not found"
-                    )
-
-                    if (
-                        title != "Title not found"
-                        and description != "Description not found"
-                    ):
-                        return title, description
-
-                    print(
-                        f"Attempt {attempt + 1}: Title or description not found, retrying..."
-                    )
-                    time.sleep(random.uniform(3.0, 5.0))
-
-                except Exception as e:
-                    print(f"Attempt {attempt + 1} failed: {str(e)}")
+                if page.query_selector("div[class*='captcha']") or page.query_selector(
+                    "div[class*='security-check']"
+                ):
+                    print("Warning: Detected possible CAPTCHA or security check page")
+                    page.screenshot(path=f"captcha_progress_screenshot_{attempt}.png")
                     if attempt < max_retries - 1:
-                        time.sleep(random.uniform(5.0, 10.0))
-                    else:
-                        raise
+                        time.sleep(random.uniform(10.0, 15.0))  # Increased delay
+                        continue
+                    raise Exception("Security check or CAPTCHA detected")
 
-            return "Title not found", "Description not found"
+                # Wait for title with increased timeout
+                title_element = page.wait_for_selector(
+                    ".job-details-card .flex-1", timeout=30000
+                )
+                time.sleep(random.uniform(2.0, 3.0))  # Increased delay
 
-        finally:
+                # Wait for description with separate timeout
+                description_element = page.wait_for_selector(
+                    "p.text-body-sm", timeout=30000
+                )
+
+                title = (
+                    title_element.inner_text() if title_element else "Title not found"
+                )
+                description = (
+                    description_element.inner_text()
+                    if description_element
+                    else "Description not found"
+                )
+
+                if (
+                    title != "Title not found"
+                    and description != "Description not found"
+                ):
+                    return title, description
+
+                print(
+                    f"Attempt {attempt + 1}: Title or description not found, retrying..."
+                )
+                time.sleep(random.uniform(5.0, 8.0))  # Increased delay
+
+            except Exception as e:
+                print(f"Attempt {attempt + 1} failed: {str(e)}")
+                if attempt < max_retries - 1:
+                    time.sleep(random.uniform(10.0, 15.0))  # Increased delay
+                else:
+                    raise
+
+        return "Title not found", "Description not found"
+
+    finally:
+        page.close()
+        if not browser:
             browser.close()
 
 

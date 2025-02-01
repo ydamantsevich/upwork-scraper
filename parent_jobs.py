@@ -8,7 +8,7 @@ def scrape_parent_job_links(cookies=None):
     """Scrapes initial job listing links"""
     with sync_playwright() as p:
         browser = p.chromium.launch(
-            headless=False,
+            headless=True,
             args=[
                 "--disable-blink-features=AutomationControlled",
                 "--no-sandbox",
@@ -86,7 +86,7 @@ def scrape_parent_job(link, cookies=None, max_retries=3):
     """Scrapes a single parent job and its in-progress links with retries"""
     with sync_playwright() as p:
         browser = p.chromium.launch(
-            headless=False,
+            headless=True,
             args=[
                 "--disable-blink-features=AutomationControlled",
                 "--no-sandbox",
