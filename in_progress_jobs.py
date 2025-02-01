@@ -155,7 +155,7 @@ def update_csv_with_progress_data(parent_url, in_progress_links, csv_filename):
         for row in reader:
             if row["url"] == parent_url:
                 row["in_progress_links"] = (
-                    "|".join(in_progress_links) if in_progress_links else ""
+                    " ; ".join(in_progress_links) if in_progress_links else ""
                 )
             rows.append(row)
 
@@ -191,7 +191,11 @@ def update_csv_with_details(
                 )
 
                 try:
-                    idx = links.index(in_progress_url)
+                    # Remove domain if present in the stored links for comparison
+                    clean_links = [
+                        link.replace("https://www.upwork.com", "") for link in links
+                    ]
+                    idx = clean_links.index(in_progress_url)
                     while len(titles) <= idx:
                         titles.append("")
                     while len(descriptions) <= idx:
@@ -200,8 +204,8 @@ def update_csv_with_details(
                     titles[idx] = title
                     descriptions[idx] = description
 
-                    row["in_progress_titles"] = "|".join(titles)
-                    row["in_progress_descriptions"] = "|".join(descriptions)
+                    row["in_progress_titles"] = " ; ".join(titles)
+                    row["in_progress_descriptions"] = " ; ".join(descriptions)
                 except ValueError:
                     print(
                         f"Link {in_progress_url} not found in parent job {parent_url}"

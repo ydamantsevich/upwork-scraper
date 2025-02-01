@@ -109,12 +109,18 @@ def scrape_parent_job(link, cookies=None, max_retries=3):
                         print(f"Warning: Page returned status code {response.status}")
                         continue
 
-                    if page.query_selector("div[class*='captcha']") or page.query_selector(
-                        "div[class*='security-check']"
-                    ):
-                        print("Warning: Detected possible CAPTCHA or security check page")
-                        page.screenshot(path=f"captcha_details_screenshot_{attempt}.png")
-                        print(f"Screenshot saved as captcha_details_screenshot_{attempt}.png")
+                    if page.query_selector(
+                        "div[class*='captcha']"
+                    ) or page.query_selector("div[class*='security-check']"):
+                        print(
+                            "Warning: Detected possible CAPTCHA or security check page"
+                        )
+                        page.screenshot(
+                            path=f"captcha_details_screenshot_{attempt}.png"
+                        )
+                        print(
+                            f"Screenshot saved as captcha_details_screenshot_{attempt}.png"
+                        )
                         if attempt < max_retries - 1:
                             time.sleep(random.uniform(5.0, 10.0))
                             continue
@@ -125,13 +131,13 @@ def scrape_parent_job(link, cookies=None, max_retries=3):
                     time.sleep(random.uniform(1.0, 2.0))
 
                     title, description, location = get_parent_job_details(page, link)
-                    
+
                     # Import here to avoid circular import
                     from in_progress_jobs import find_in_progress_links
-                    
+
                     # Find in-progress links with retries
                     in_progress_links = find_in_progress_links(page, max_retries=3)
-                    
+
                     job_data = {
                         "url": f"https://www.upwork.com{link}",
                         "title": title,
@@ -139,14 +145,16 @@ def scrape_parent_job(link, cookies=None, max_retries=3):
                         "location": location,
                         "timestamp": datetime.now().isoformat(),
                         "source": "upwork.com",
-                        "in_progress_links": "|".join(in_progress_links) if in_progress_links else "",
+                        "in_progress_links": (
+                            " ; ".join(in_progress_links) if in_progress_links else ""
+                        ),
                         "in_progress_titles": "",
                         "in_progress_descriptions": "",
                     }
-                    
+
                     if in_progress_links:
                         print(f"Found {len(in_progress_links)} in-progress links")
-                    
+
                     return job_data
 
                 except Exception as e:

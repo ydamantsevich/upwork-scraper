@@ -65,7 +65,7 @@ def save_to_csv(jobs_data):
 
 
 def process_in_progress_jobs(csv_filename):
-    """Phase 2: Process in-progress jobs from CSV and update with details"""
+    """Process in-progress jobs from CSV and update with details"""
     try:
         cookies = get_cookies()
         print("Cookies successfully loaded")
@@ -73,7 +73,7 @@ def process_in_progress_jobs(csv_filename):
         print(f"Error loading cookies: {e}")
         return
 
-    print("\nPhase 2: Processing in-progress jobs from CSV...")
+    print("\nProcessing in-progress jobs from CSV...")
     with open(csv_filename, "r", encoding="utf-8") as file:
         reader = csv.DictReader(file)
         rows = list(reader)
@@ -81,7 +81,7 @@ def process_in_progress_jobs(csv_filename):
         for row in rows:
             if row["in_progress_links"]:
                 parent_url = row["url"]
-                in_progress_links = row["in_progress_links"].split("|")
+                in_progress_links = row["in_progress_links"].split(" ; ")
                 print(f"\nProcessing in-progress jobs for {parent_url}")
 
                 for i, link in enumerate(in_progress_links, 1):
@@ -92,7 +92,12 @@ def process_in_progress_jobs(csv_filename):
                     try:
                         # Get job details with retries and timeouts
                         title, description = scrape_in_progress_job(link, cookies)
-                        if title and description and title != "Title not found" and description != "Description not found":
+                        if (
+                            title
+                            and description
+                            and title != "Title not found"
+                            and description != "Description not found"
+                        ):
                             # Update CSV with details
                             update_csv_with_details(
                                 parent_url, link, title, description, csv_filename
@@ -113,8 +118,8 @@ def process_in_progress_jobs(csv_filename):
 
 
 def scrape_parent_jobs():
-    """Phase 1: Scrape parent jobs and collect in-progress links"""
-    print("Starting Phase 1: Collecting parent jobs and in-progress links...")
+    """Scrape parent jobs and collect in-progress links"""
+    print("Starting: Collecting parent jobs and in-progress links...")
 
     try:
         cookies = get_cookies()
@@ -139,7 +144,7 @@ def scrape_parent_jobs():
         # List to store all jobs
         jobs_data = []
 
-        # First phase: Collect parent jobs and in-progress links
+        # Collect parent jobs and in-progress links
         print("\nCollecting parent job information and in-progress links...")
         for i, link in enumerate(job_links, 1):
             print(f"\nProcessing parent job {i}/{len(job_links)}...")
@@ -161,8 +166,6 @@ def scrape_parent_jobs():
 
         # Save data to CSV
         csv_filename = save_to_csv(jobs_data)
-        print("\nPhase 1 complete. To process in-progress jobs, run:")
-        print(f"python main.py phase2 {csv_filename}")
         return csv_filename
 
     except Exception as e:
@@ -171,21 +174,9 @@ def scrape_parent_jobs():
 
 if __name__ == "__main__":
     try:
-        if len(sys.argv) == 1:
-            # No arguments - run phase 1
-            scrape_parent_jobs()
-        elif len(sys.argv) == 3 and sys.argv[1] == "phase2":
-            # Phase 2 with CSV filename
-            csv_filename = sys.argv[2]
-            if not os.path.exists(csv_filename):
-                print(f"Error: CSV file {csv_filename} not found")
-                sys.exit(1)
+        csv_filename = scrape_parent_jobs()
+        if csv_filename:
             process_in_progress_jobs(csv_filename)
-        else:
-            print("Usage:")
-            print("Phase 1 (collect parent jobs): python main.py")
-            print("Phase 2 (process in-progress): python main.py phase2 <csv_filename>")
-            sys.exit(1)
     except KeyboardInterrupt:
         print("\nScript execution interrupted by user")
     except Exception as e:
