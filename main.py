@@ -7,6 +7,7 @@ from in_progress_jobs import (
 )
 import os
 import csv
+import json
 from datetime import datetime
 from dotenv import load_dotenv
 import time
@@ -17,35 +18,114 @@ from playwright.sync_api import sync_playwright
 # Load environment variables from .env file
 load_dotenv()
 
+def get_random_delay(min_delay, max_delay):
+    """Get a random delay with some gaussian distribution"""
+    # Use gaussian distribution for more natural timing
+    mu = (min_delay + max_delay) / 2
+    sigma = (max_delay - min_delay) / 6  # 99.7% of values within min/max
+    delay = random.gauss(mu, sigma)
+    # Ensure delay stays within bounds
+    return max(min_delay, min(max_delay, delay))
 
 def get_cookies():
-    """Get all required cookies from environment variables"""
+    """Get cookies from JSON file or environment variables"""
     cookies = []
-
-    # Main cookies for authorization
-    required_cookies = {
-        "master_access_token": os.getenv("UPWORK_MASTER_TOKEN"),
-        "oauth2_global_js_token": os.getenv("UPWORK_OAUTH_TOKEN"),
-        "visitor_id": os.getenv("UPWORK_VISITOR_ID"),
-        "__cf_bm": os.getenv("UPWORK_CF_BM"),
+    required_cookie_names = {
+        # Authentication
+        "master_access_token",
+        "oauth2_global_js_token",
+        "user_uid",
+        "XSRF-TOKEN",
+        "spt",
+        "console_user",
+        
+        # Cloudflare Protection
+        "__cf_bm",
+        "__cflb",
+        "_cfuvid",
+        "AWSALB",
+        "AWSALBCORS"
     }
 
-    # Check for main token presence
-    if (
-        not required_cookies["master_access_token"]
-        or required_cookies["master_access_token"] == "your_master_token_here"
-    ):
-        raise ValueError("Please set your UPWORK_MASTER_TOKEN in .env file")
+    # Try to load cookies from JSON file first
+    try:
+        json_files = [f for f in os.listdir() if f.endswith('.json') and 'upwork.com' in f]
+        if json_files:
+            latest_file = max(json_files, key=os.path.getctime)  # Get most recent file
+            print(f"Loading cookies from {latest_file}")
+            
+            with open(latest_file, 'r') as f:
+                json_cookies = json.load(f)
+                
+            # Extract required cookies from JSON
+            for cookie in json_cookies:
+                if cookie['name'] in required_cookie_names:
+                    cookies.append({
+                        'name': cookie['name'],
+                        'value': cookie['value'],
+                        'domain': cookie.get('domain', '.upwork.com'),
+                        'path': cookie.get('path', '/')
+                    })
+            
+            # Verify all required cookies are present
+            found_cookies = {cookie['name'] for cookie in cookies}
+            if 'master_access_token' in found_cookies:
+                print("Successfully loaded cookies from JSON file")
+                return cookies
+            else:
+                print("JSON file missing critical cookies, falling back to environment variables")
+                cookies = []  # Reset cookies to try env vars
+                
+    except Exception as e:
+        print(f"Error loading cookies from JSON: {e}")
+        print("Falling back to environment variables")
 
-    # Form cookies list
-    for name, value in required_cookies.items():
-        if value:
-            cookies.append(
-                {"name": name, "value": value, "domain": ".upwork.com", "path": "/"}
-            )
+    # Fall back to environment variables if JSON loading failed
+    env_cookie_mapping = {
+        "master_access_token": "UPWORK_MASTER_TOKEN",
+        "oauth2_global_js_token": "UPWORK_OAUTH_TOKEN",
+        "user_uid": "UPWORK_USER_UID",
+        "XSRF-TOKEN": "UPWORK_XSRF_TOKEN",
+        "spt": "UPWORK_SPT",
+        "console_user": "UPWORK_CONSOLE_USER",
+        "__cf_bm": "UPWORK_CF_BM",
+        "__cflb": "UPWORK_CFLB",
+        "_cfuvid": "UPWORK_CFUVID",
+        "AWSALB": "UPWORK_AWSALB",
+        "AWSALBCORS": "UPWORK_AWSALBCORS"
+    }
+
+    # Load from environment variables
+    for cookie_name, env_var in env_cookie_mapping.items():
+        value = os.getenv(env_var)
+        if value and value != "your_master_token_here":
+            cookies.append({
+                "name": cookie_name,
+                "value": value,
+                "domain": ".upwork.com",
+                "path": "/"
+            })
+
+    # Verify master token presence
+    if not any(c['name'] == 'master_access_token' for c in cookies):
+        raise ValueError("master_access_token not found in JSON or environment variables")
 
     return cookies
 
+def get_proxy():
+    """Get proxy configuration from environment variables"""
+    proxy_host = os.getenv('PROXY_HOST')
+    proxy_port = os.getenv('PROXY_PORT')
+    proxy_username = os.getenv('PROXY_USERNAME')
+    proxy_password = os.getenv('PROXY_PASSWORD')
+    
+    if all([proxy_host, proxy_port, proxy_username, proxy_password]):
+        return {
+            'server': f'http://{proxy_host}:{proxy_port}',
+            'username': proxy_username,
+            'password': proxy_password
+        }
+    return None
 
 def save_to_csv(jobs_data):
     """Saves data to CSV file and returns the filename"""
@@ -63,7 +143,6 @@ def save_to_csv(jobs_data):
     else:
         print("No data to save")
         return None
-
 
 def process_in_progress_jobs(csv_filename):
     """Process in-progress jobs from CSV and update with details"""
@@ -85,8 +164,8 @@ def process_in_progress_jobs(csv_filename):
                 args=[
                     "--disable-blink-features=AutomationControlled",
                     "--no-sandbox",
-                    "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
                 ],
+                proxy=get_proxy()
             )
 
             for row in rows:
@@ -119,17 +198,16 @@ def process_in_progress_jobs(csv_filename):
                             else:
                                 print(f"Failed to get valid details for {link}")
 
-                            # Add delay between jobs
-                            time.sleep(random.uniform(15, 30))
+                            # Add randomized delay between jobs
+                            time.sleep(get_random_delay(15, 30))
 
                         except Exception as e:
                             print(f"Error processing in-progress job {link}: {e}")
                             continue
 
-                    # Add longer delay between parent jobs
-                    time.sleep(random.uniform(30, 60))
+                    # Add longer randomized delay between parent jobs
+                    time.sleep(get_random_delay(30, 60))
             browser.close()
-
 
 def scrape_parent_jobs():
     """Scrape parent jobs and collect in-progress links"""
@@ -171,8 +249,8 @@ def scrape_parent_jobs():
 
                 jobs_data.append(job_data)
 
-                # Add delay between parent jobs
-                time.sleep(random.uniform(10, 20))
+                # Add randomized delay between parent jobs
+                time.sleep(get_random_delay(10, 20))
 
             except Exception as e:
                 print(f"Error processing parent job {link}: {e}")
@@ -184,7 +262,6 @@ def scrape_parent_jobs():
 
     except Exception as e:
         print(f"Error during scraping: {e}")
-
 
 if __name__ == "__main__":
     try:

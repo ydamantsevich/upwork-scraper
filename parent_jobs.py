@@ -2,7 +2,12 @@ from playwright.sync_api import sync_playwright
 import time
 import random
 from datetime import datetime
-
+from in_progress_jobs import (
+    get_random_user_agent,
+    get_random_viewport,
+    simulate_human_behavior,
+    find_in_progress_links
+)
 
 def scrape_parent_job_links(cookies=None):
     """Scrapes initial job listing links"""
@@ -12,20 +17,101 @@ def scrape_parent_job_links(cookies=None):
             args=[
                 "--disable-blink-features=AutomationControlled",
                 "--no-sandbox",
-                "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            ],
+            ]
         )
-        context = browser.new_context()
+        
+        viewport = get_random_viewport()
+        context = browser.new_context(
+            viewport=viewport,
+            user_agent=get_random_user_agent(),
+            color_scheme='dark' if random.random() > 0.5 else 'light',
+            locale=random.choice(['en-US', 'en-GB', 'en-CA']),
+            timezone_id=random.choice(['America/New_York', 'Europe/London', 'Europe/Berlin']),
+            permissions=['geolocation']
+        )
+        
         page = context.new_page()
+        
+        # Add randomized headers
+        page.set_extra_http_headers({
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+            'Accept-Language': f"en-US,en;q={random.uniform(0.8, 0.9):.1f}",
+            'Accept-Encoding': 'gzip, deflate, br',
+            'DNT': '1',
+            'Connection': 'keep-alive',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'none',
+            'Sec-Fetch-User': '?1',
+            'Upgrade-Insecure-Requests': '1',
+            'Pragma': 'no-cache'
+        })
 
         try:
             if cookies:
                 context.add_cookies(cookies)
 
-            time.sleep(random.uniform(1.0, 2.0))
+            # Add browser fingerprint evasion
+            page.evaluate("""() => {
+                const evasions = {
+                    webdriver: undefined,
+                    webGL: true,
+                    chrome: {
+                        runtime: true,
+                        webstore: true
+                    },
+                    permissions: {
+                        query: true
+                    },
+                    navigator: {
+                        languages: ['en-US', 'en']
+                    }
+                };
+                
+                // WebDriver
+                Object.defineProperty(navigator, 'webdriver', {
+                    get: () => evasions.webdriver
+                });
+                
+                // WebGL
+                if (evasions.webGL) {
+                    const getParameter = WebGLRenderingContext.prototype.getParameter;
+                    WebGLRenderingContext.prototype.getParameter = function(parameter) {
+                        if (parameter === 37445) {
+                            return 'Intel Open Source Technology Center';
+                        }
+                        if (parameter === 37446) {
+                            return 'Mesa DRI Intel(R) HD Graphics (SKL GT2)';
+                        }
+                        return getParameter.apply(this, arguments);
+                    };
+                }
+                
+                // Chrome
+                if (evasions.chrome) {
+                    window.chrome = {
+                        runtime: {},
+                        webstore: {}
+                    };
+                }
+                
+                // Permissions
+                if (evasions.permissions) {
+                    const originalQuery = window.navigator.permissions.query;
+                    window.navigator.permissions.query = parameters => (
+                        parameters.name === 'notifications' ?
+                            Promise.resolve({ state: Notification.permission }) :
+                            originalQuery(parameters)
+                    );
+                }
+            }""")
+
+            time.sleep(random.uniform(3.0, 5.0))
 
             response = page.goto(
-                "https://www.upwork.com/nx/search/jobs/?amount=5000-&category2_uid=531770282580668418&hourly_rate=50-&location=Europe,Northern%20America,Israel,United%20Kingdom&per_page=10&sort=recency&t=0,1"
+                "https://www.upwork.com/nx/search/jobs/?amount=5000-&category2_uid=531770282580668418&hourly_rate=50-&location=Europe,Northern%20America,Israel,United%20Kingdom&per_page=10&sort=recency&t=0,1",
+                wait_until='networkidle',
+                timeout=60000
             )
 
             if response.status != 200:
@@ -39,9 +125,11 @@ def scrape_parent_job_links(cookies=None):
                 print("Screenshot saved as captcha_screenshot.png")
                 raise Exception("Security check or CAPTCHA detected")
 
+            simulate_human_behavior(page)
+
             print("Waiting for job listings to load...")
             page.wait_for_selector(".air3-link", timeout=60000)
-            time.sleep(random.uniform(1.0, 2.0))
+            time.sleep(random.uniform(2.0, 4.0))
 
             job_links = page.query_selector_all("a.air3-link")
             links = [link.get_attribute("href") for link in job_links]
@@ -90,50 +178,127 @@ def scrape_parent_job(link, cookies=None, max_retries=3):
             args=[
                 "--disable-blink-features=AutomationControlled",
                 "--no-sandbox",
-                "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            ],
+            ]
         )
-        context = browser.new_context()
+        
+        viewport = get_random_viewport()
+        context = browser.new_context(
+            viewport=viewport,
+            user_agent=get_random_user_agent(),
+            color_scheme='dark' if random.random() > 0.5 else 'light',
+            locale=random.choice(['en-US', 'en-GB', 'en-CA']),
+            timezone_id=random.choice(['America/New_York', 'Europe/London', 'Europe/Berlin']),
+            permissions=['geolocation']
+        )
+        
         page = context.new_page()
+        
+        # Add randomized headers
+        page.set_extra_http_headers({
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+            'Accept-Language': f"en-US,en;q={random.uniform(0.8, 0.9):.1f}",
+            'Accept-Encoding': 'gzip, deflate, br',
+            'DNT': '1',
+            'Connection': 'keep-alive',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'none',
+            'Sec-Fetch-User': '?1',
+            'Upgrade-Insecure-Requests': '1',
+            'Pragma': 'no-cache'
+        })
 
         try:
             if cookies:
                 context.add_cookies(cookies)
 
-            time.sleep(random.uniform(1.0, 2.0))
+            # Add browser fingerprint evasion
+            page.evaluate("""() => {
+                const evasions = {
+                    webdriver: undefined,
+                    webGL: true,
+                    chrome: {
+                        runtime: true,
+                        webstore: true
+                    },
+                    permissions: {
+                        query: true
+                    },
+                    navigator: {
+                        languages: ['en-US', 'en']
+                    }
+                };
+                
+                // WebDriver
+                Object.defineProperty(navigator, 'webdriver', {
+                    get: () => evasions.webdriver
+                });
+                
+                // WebGL
+                if (evasions.webGL) {
+                    const getParameter = WebGLRenderingContext.prototype.getParameter;
+                    WebGLRenderingContext.prototype.getParameter = function(parameter) {
+                        if (parameter === 37445) {
+                            return 'Intel Open Source Technology Center';
+                        }
+                        if (parameter === 37446) {
+                            return 'Mesa DRI Intel(R) HD Graphics (SKL GT2)';
+                        }
+                        return getParameter.apply(this, arguments);
+                    };
+                }
+                
+                // Chrome
+                if (evasions.chrome) {
+                    window.chrome = {
+                        runtime: {},
+                        webstore: {}
+                    };
+                }
+                
+                // Permissions
+                if (evasions.permissions) {
+                    const originalQuery = window.navigator.permissions.query;
+                    window.navigator.permissions.query = parameters => (
+                        parameters.name === 'notifications' ?
+                            Promise.resolve({ state: Notification.permission }) :
+                            originalQuery(parameters)
+                    );
+                }
+            }""")
+
+            time.sleep(random.uniform(3.0, 5.0))
 
             for attempt in range(max_retries):
                 try:
-                    response = page.goto(f"https://www.upwork.com{link}")
+                    response = page.goto(
+                        f"https://www.upwork.com{link}",
+                        wait_until='networkidle',
+                        timeout=60000
+                    )
+                    
                     if response.status != 200:
                         print(f"Warning: Page returned status code {response.status}")
                         continue
 
-                    if page.query_selector(
-                        "div[class*='captcha']"
-                    ) or page.query_selector("div[class*='security-check']"):
-                        print(
-                            "Warning: Detected possible CAPTCHA or security check page"
-                        )
-                        page.screenshot(
-                            path=f"captcha_details_screenshot_{attempt}.png"
-                        )
-                        print(
-                            f"Screenshot saved as captcha_details_screenshot_{attempt}.png"
-                        )
+                    if page.query_selector("div[class*='captcha']") or page.query_selector(
+                        "div[class*='security-check']"
+                    ):
+                        print("Warning: Detected possible CAPTCHA or security check page")
+                        page.screenshot(path=f"captcha_details_screenshot_{attempt}.png")
+                        print(f"Screenshot saved as captcha_details_screenshot_{attempt}.png")
                         if attempt < max_retries - 1:
-                            time.sleep(random.uniform(5.0, 10.0))
+                            time.sleep(random.uniform(15.0, 25.0))
                             continue
                         raise Exception("Security check or CAPTCHA detected")
 
+                    simulate_human_behavior(page)
+
                     print("Waiting for job details to load...")
                     page.wait_for_selector(".job-details-card .flex-1", timeout=60000)
-                    time.sleep(random.uniform(1.0, 2.0))
+                    time.sleep(random.uniform(2.0, 4.0))
 
                     title, description, location = get_parent_job_details(page, link)
-
-                    # Import here to avoid circular import
-                    from in_progress_jobs import find_in_progress_links
 
                     # Find in-progress links with retries
                     in_progress_links = find_in_progress_links(page, max_retries=3)
@@ -145,9 +310,7 @@ def scrape_parent_job(link, cookies=None, max_retries=3):
                         "location": location,
                         "timestamp": datetime.now().isoformat(),
                         "source": "upwork.com",
-                        "in_progress_links": (
-                            " ; ".join(in_progress_links) if in_progress_links else ""
-                        ),
+                        "in_progress_links": " ; ".join(in_progress_links) if in_progress_links else "",
                         "in_progress_titles": "",
                         "in_progress_descriptions": "",
                     }
@@ -160,7 +323,7 @@ def scrape_parent_job(link, cookies=None, max_retries=3):
                 except Exception as e:
                     print(f"Attempt {attempt + 1} failed: {str(e)}")
                     if attempt < max_retries - 1:
-                        time.sleep(random.uniform(5.0, 10.0))
+                        time.sleep(random.uniform(15.0, 25.0))
                     else:
                         raise
 
