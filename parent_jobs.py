@@ -11,7 +11,7 @@ from in_progress_jobs import (
 )
 
 
-def scrape_parent_job_links(cookies=None):
+def scrape_parent_job_links(cookies=None, profile_manager=None):
     """Scrapes initial job listing links"""
     with sync_playwright() as p:
         browser = p.chromium.launch(
@@ -22,17 +22,29 @@ def scrape_parent_job_links(cookies=None):
             ],
         )
 
-        viewport = get_random_viewport()
-        context = browser.new_context(
-            viewport=viewport,
-            user_agent=get_random_user_agent(),
-            color_scheme="dark" if random.random() > 0.5 else "light",
-            locale=random.choice(["en-US", "en-GB", "en-CA"]),
-            timezone_id=random.choice(
-                ["America/New_York", "Europe/London", "Europe/Berlin"]
-            ),
-            permissions=["geolocation"],
-        )
+        # Get profile from manager or generate random if no manager
+        if profile_manager:
+            profile = profile_manager.get_profile(is_new_parent_job=True)
+            context = browser.new_context(
+                viewport=profile["viewport"],
+                user_agent=profile["user_agent"],
+                color_scheme=profile["color_scheme"],
+                locale=profile["locale"],
+                timezone_id=profile["timezone"],
+                permissions=["geolocation"],
+            )
+        else:
+            viewport = get_random_viewport()
+            context = browser.new_context(
+                viewport=viewport,
+                user_agent=get_random_user_agent(),
+                color_scheme="dark" if random.random() > 0.5 else "light",
+                locale=random.choice(["en-US", "en-GB", "en-CA"]),
+                timezone_id=random.choice(
+                    ["America/New_York", "Europe/London", "Europe/Berlin"]
+                ),
+                permissions=["geolocation"],
+            )
 
         page = context.new_page()
         stealth_sync(page)
@@ -184,7 +196,7 @@ def get_parent_job_details(page, link):
     return title, description, location
 
 
-def scrape_parent_job(link, cookies=None, max_retries=3):
+def scrape_parent_job(link, cookies=None, profile_manager=None, max_retries=3):
     """Scrapes a single parent job and its in-progress links with retries"""
     with sync_playwright() as p:
         browser = p.chromium.launch(
@@ -195,17 +207,29 @@ def scrape_parent_job(link, cookies=None, max_retries=3):
             ],
         )
 
-        viewport = get_random_viewport()
-        context = browser.new_context(
-            viewport=viewport,
-            user_agent=get_random_user_agent(),
-            color_scheme="dark" if random.random() > 0.5 else "light",
-            locale=random.choice(["en-US", "en-GB", "en-CA"]),
-            timezone_id=random.choice(
-                ["America/New_York", "Europe/London", "Europe/Berlin"]
-            ),
-            permissions=["geolocation"],
-        )
+        # Get profile from manager or generate random if no manager
+        if profile_manager:
+            profile = profile_manager.get_profile(is_new_parent_job=True)
+            context = browser.new_context(
+                viewport=profile["viewport"],
+                user_agent=profile["user_agent"],
+                color_scheme=profile["color_scheme"],
+                locale=profile["locale"],
+                timezone_id=profile["timezone"],
+                permissions=["geolocation"],
+            )
+        else:
+            viewport = get_random_viewport()
+            context = browser.new_context(
+                viewport=viewport,
+                user_agent=get_random_user_agent(),
+                color_scheme="dark" if random.random() > 0.5 else "light",
+                locale=random.choice(["en-US", "en-GB", "en-CA"]),
+                timezone_id=random.choice(
+                    ["America/New_York", "Europe/London", "Europe/Berlin"]
+                ),
+                permissions=["geolocation"],
+            )
 
         page = context.new_page()
 

@@ -5,6 +5,7 @@ from in_progress_jobs import (
     update_csv_with_progress_data,
     update_csv_with_details,
 )
+from browser_profile_manager import BrowserProfileManager
 import os
 import csv
 import json
@@ -153,6 +154,11 @@ def process_in_progress_jobs(csv_filename):
         print(f"Error loading cookies: {e}")
         return
 
+    # Initialize profile manager with stability mode from env
+    stability_mode = os.getenv("SESSION_STABILITY", "medium")
+    profile_manager = BrowserProfileManager(stability_mode)
+    print(f"Using {stability_mode} stability mode for browser profiles")
+
     print("\nProcessing in-progress jobs from CSV...")
     with open(csv_filename, "r", encoding="utf-8") as file:
         reader = csv.DictReader(file)
@@ -220,11 +226,16 @@ def scrape_parent_jobs():
         print(f"Error loading cookies: {e}")
         return
 
+    # Initialize profile manager with stability mode from env
+    stability_mode = os.getenv("SESSION_STABILITY", "medium")
+    profile_manager = BrowserProfileManager(stability_mode)
+    print(f"Using {stability_mode} stability mode for browser profiles")
+
     try:
         # Collect all job links
         print("\nGetting job list...")
         try:
-            job_links = scrape_parent_job_links(cookies)
+            job_links = scrape_parent_job_links(cookies, profile_manager)
             if not job_links:
                 print("Failed to get job links")
                 return

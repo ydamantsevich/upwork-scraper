@@ -120,7 +120,7 @@ def find_in_progress_links(page, max_retries=3):
     return in_progress_links
 
 
-def scrape_in_progress_job(url, cookies, browser=None, max_retries=3):
+def scrape_in_progress_job(url, cookies, browser=None, profile_manager=None, max_retries=3):
     """Scrape details for a single in-progress job with retries, reusing browser instance"""
     if not browser:
         with sync_playwright() as p:
@@ -132,17 +132,29 @@ def scrape_in_progress_job(url, cookies, browser=None, max_retries=3):
                 ],
             )
 
-    viewport = get_random_viewport()
-    context = browser.new_context(
-        viewport=viewport,
-        user_agent=get_random_user_agent(),
-        color_scheme="dark" if random.random() > 0.5 else "light",
-        locale=random.choice(["en-US", "en-GB", "en-CA"]),
-        timezone_id=random.choice(
-            ["America/New_York", "Europe/London", "Europe/Berlin"]
-        ),
-        permissions=["geolocation"],
-    )
+    # Get profile from manager or generate random if no manager
+    if profile_manager:
+        profile = profile_manager.get_profile()
+        context = browser.new_context(
+            viewport=profile["viewport"],
+            user_agent=profile["user_agent"],
+            color_scheme=profile["color_scheme"],
+            locale=profile["locale"],
+            timezone_id=profile["timezone"],
+            permissions=["geolocation"],
+        )
+    else:
+        viewport = get_random_viewport()
+        context = browser.new_context(
+            viewport=viewport,
+            user_agent=get_random_user_agent(),
+            color_scheme="dark" if random.random() > 0.5 else "light",
+            locale=random.choice(["en-US", "en-GB", "en-CA"]),
+            timezone_id=random.choice(
+                ["America/New_York", "Europe/London", "Europe/Berlin"]
+            ),
+            permissions=["geolocation"],
+        )
 
     page = context.new_page()
     stealth_sync(page)
