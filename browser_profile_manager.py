@@ -2,10 +2,12 @@ import random
 from typing import Dict, List, Optional, Union
 from enum import Enum
 
+
 class SessionStability(Enum):
     STRICT = "strict"  # Полная смена параметров для каждого запроса
     MEDIUM = "medium"  # Смена каждые 5 заданий
     RELAXED = "relaxed"  # Смена только между родительскими заданиями
+
 
 class BrowserProfileManager:
     def __init__(self, stability_mode: str = "medium"):
@@ -17,11 +19,14 @@ class BrowserProfileManager:
 
     def _generate_base_profile(self) -> Dict[str, Union[Dict, str]]:
         """Генерирует базовый профиль браузера"""
-        chrome_versions = ["119.0.0.0", "120.0.0.0", "121.0.0.0"]
+        chrome_versions = ["119.0.0.0", "120.0.0.0", "121.0.0.0", "122.0.0.0"]
         platforms = [
             "Windows NT 10.0; Win64; x64",
             "Macintosh; Intel Mac OS X 10_15_7",
             "X11; Linux x86_64",
+            "Windows NT 10.0; WOW64",
+            "Macintosh; Intel Mac OS X 10_15",
+            "X11; Ubuntu; Linux x86_64",
         ]
         common_widths = [1366, 1440, 1536, 1920, 2560]
         common_heights = [768, 900, 864, 1080, 1440]
@@ -53,7 +58,9 @@ class BrowserProfileManager:
         """Обновляет часть параметров профиля"""
         # В medium режиме меняем только user-agent и timezone
         if random.random() > 0.5:
-            self.current_profile["user_agent"] = self._generate_base_profile()["user_agent"]
+            self.current_profile["user_agent"] = self._generate_base_profile()[
+                "user_agent"
+            ]
         if random.random() > 0.5:
             self.current_profile["timezone"] = self._generate_base_profile()["timezone"]
 
@@ -61,10 +68,12 @@ class BrowserProfileManager:
         """Полностью обновляет профиль"""
         self.current_profile = self._generate_base_profile()
 
-    def get_profile(self, is_new_parent_job: bool = False) -> Dict[str, Union[Dict, str]]:
+    def get_profile(
+        self, is_new_parent_job: bool = False
+    ) -> Dict[str, Union[Dict, str]]:
         """
         Возвращает текущий профиль браузера, при необходимости обновляя его
-        
+
         Args:
             is_new_parent_job: Флаг, указывающий на начало обработки нового родительского задания
         """
@@ -75,7 +84,7 @@ class BrowserProfileManager:
             return self.current_profile
 
         self.requests_count += 1
-        
+
         if self._should_rotate():
             if self.stability_mode == SessionStability.STRICT:
                 self._rotate_full_parameters()

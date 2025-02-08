@@ -130,7 +130,7 @@ def scrape_parent_job_links(cookies=None, profile_manager=None):
             time.sleep(random.uniform(3.0, 5.0))
 
             response = page.goto(
-                "https://www.upwork.com/nx/search/jobs/?amount=5000-&category2_uid=531770282580668418&hourly_rate=50-&location=Europe,Northern%20America,Israel,United%20Kingdom&per_page=10&sort=recency&t=0,1",
+                "https://www.upwork.com/nx/search/jobs/?amount=1000-4999,5000-&category2_uid=531770282580668418&location=Northern%20America&per_page=10&sort=recency&t=0,1",
                 wait_until="networkidle",
                 timeout=60000,
             )
