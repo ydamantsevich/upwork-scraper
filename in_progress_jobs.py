@@ -29,29 +29,120 @@ def get_random_viewport():
     }
 
 
+def generate_bezier_curve(start, end, num_points=10):
+    """Generate a natural bezier curve for mouse movement"""
+    control_point1 = (
+        start[0] + (end[0] - start[0]) * random.uniform(0.2, 0.4),
+        start[1] + random.uniform(-100, 100)
+    )
+    control_point2 = (
+        start[0] + (end[0] - start[0]) * random.uniform(0.6, 0.8),
+        end[1] + random.uniform(-100, 100)
+    )
+    
+    points = []
+    for t in [i / (num_points - 1) for i in range(num_points)]:
+        # Bezier curve formula
+        x = (1-t)**3 * start[0] + 3*(1-t)**2 * t * control_point1[0] + 3*(1-t) * t**2 * control_point2[0] + t**3 * end[0]
+        y = (1-t)**3 * start[1] + 3*(1-t)**2 * t * control_point1[1] + 3*(1-t) * t**2 * control_point2[1] + t**3 * end[1]
+        points.append((int(x), int(y)))
+    return points
+
+def natural_scroll_pattern():
+    """Generate natural scrolling patterns"""
+    patterns = [
+        # Quick scroll followed by reading pauses
+        lambda: ([random.randint(300, 500)] + [50] * random.randint(2, 4)),
+        # Gradual scroll while reading
+        lambda: [random.randint(50, 150) for _ in range(random.randint(3, 7))],
+        # Long scroll followed by scroll up correction
+        lambda: [random.randint(400, 800), random.randint(-100, -50)],
+        # Variable speed scrolling
+        lambda: [random.randint(100, 300) for _ in range(random.randint(2, 5))]
+    ]
+    return random.choice(patterns)()
+
 def simulate_human_behavior(page):
-    """Simulate realistic human behavior"""
-    # Random initial pause
-    time.sleep(random.uniform(2.0, 4.0))
-
-    # Random mouse movements
-    for _ in range(random.randint(3, 7)):
-        page.mouse.move(
-            random.randint(100, page.viewport_size["width"] - 100),
-            random.randint(100, page.viewport_size["height"] - 100),
-            steps=random.randint(5, 10),
+    """Simulate highly realistic human behavior with natural patterns"""
+    viewport_width = page.viewport_size["width"]
+    viewport_height = page.viewport_size["height"]
+    current_mouse_pos = {"x": 0, "y": 0}  # Track mouse position
+    
+    # Initial page load pause with slight variation
+    time.sleep(random.normalvariate(2.5, 0.5))
+    
+    # Simulate initial page scan
+    start_pos = (random.randint(0, viewport_width), random.randint(50, 150))
+    page.mouse.move(start_pos[0], start_pos[1])
+    current_mouse_pos["x"], current_mouse_pos["y"] = start_pos
+    time.sleep(random.normalvariate(0.5, 0.1))
+    
+    # Natural mouse movements using bezier curves
+    for _ in range(random.randint(2, 5)):
+        end_pos = (
+            random.randint(100, viewport_width - 100),
+            random.randint(100, viewport_height - 100)
         )
-        time.sleep(random.uniform(0.5, 1.5))
-
-    # Random scrolling
-    for _ in range(random.randint(2, 4)):
-        page.mouse.wheel(0, random.randint(300, 700))
-        time.sleep(random.uniform(1.0, 2.0))
-
-    # Move back up sometimes
-    if random.random() > 0.5:
-        page.mouse.wheel(0, random.randint(-400, -200))
-        time.sleep(random.uniform(1.0, 2.0))
+        points = generate_bezier_curve(
+            (current_mouse_pos["x"], current_mouse_pos["y"]), 
+            end_pos, 
+            num_points=random.randint(8, 15)
+        )
+        
+        for point in points:
+            page.mouse.move(point[0], point[1])
+            current_mouse_pos["x"], current_mouse_pos["y"] = point
+            # Add micro-delays for more natural movement
+            time.sleep(random.normalvariate(0.05, 0.01))
+            
+        # Occasional mouse acceleration/deceleration
+        if random.random() < 0.3:
+            time.sleep(random.normalvariate(0.2, 0.05))
+        
+        # Simulate reading pause
+        if random.random() < 0.4:
+            time.sleep(random.normalvariate(1.0, 0.2))
+    
+    # Natural scrolling behavior
+    scroll_count = random.randint(2, 5)
+    for _ in range(scroll_count):
+        # Get scroll pattern
+        scroll_amounts = natural_scroll_pattern()
+        
+        for amount in scroll_amounts:
+            # Add slight mouse movement during scroll
+            if random.random() < 0.3:
+                new_x = current_mouse_pos["x"] + random.randint(-20, 20)
+                new_y = current_mouse_pos["y"] + random.randint(-20, 20)
+                # Keep mouse within viewport
+                new_x = max(0, min(new_x, viewport_width))
+                new_y = max(0, min(new_y, viewport_height))
+                page.mouse.move(new_x, new_y)
+                current_mouse_pos["x"], current_mouse_pos["y"] = new_x, new_y
+            
+            page.mouse.wheel(0, amount)
+            # Variable scroll speed
+            time.sleep(random.normalvariate(0.3, 0.1))
+            
+            # Simulate content scanning pause
+            if random.random() < 0.3:
+                time.sleep(random.normalvariate(0.8, 0.2))
+    
+    # Occasional highlight/select text behavior
+    if random.random() < 0.2:
+        start_x = current_mouse_pos["x"]
+        start_y = current_mouse_pos["y"]
+        page.mouse.down()
+        new_x = start_x + random.randint(50, 200)
+        new_y = start_y + random.randint(-10, 10)
+        # Keep within viewport
+        new_x = max(0, min(new_x, viewport_width))
+        new_y = max(0, min(new_y, viewport_height))
+        page.mouse.move(new_x, new_y)
+        current_mouse_pos["x"], current_mouse_pos["y"] = new_x, new_y
+        time.sleep(random.normalvariate(0.3, 0.05))
+        page.mouse.up()
+        time.sleep(random.normalvariate(0.5, 0.1))
 
 
 def find_in_progress_links(page, max_retries=3):
@@ -183,61 +274,118 @@ def scrape_in_progress_job(url, cookies, browser=None, profile_manager=None, max
         if cookies:
             context.add_cookies(cookies)
 
-        # Add extensive browser fingerprint evasion
+        # Add advanced browser fingerprint evasion
         page.evaluate(
-            """() => {
-            const evasions = {
-                webdriver: undefined,
-                webGL: true,
-                chrome: {
-                    runtime: true,
-                    webstore: true
-                },
-                permissions: {
-                    query: true
-                },
-                navigator: {
-                    languages: ['en-US', 'en']
-                }
-            };
-            
-            // WebDriver
-            Object.defineProperty(navigator, 'webdriver', {
-                get: () => evasions.webdriver
-            });
-            
-            // WebGL
-            if (evasions.webGL) {
+            """(profile) => {
+                // Advanced WebDriver evasion
+                delete Object.getPrototypeOf(navigator).webdriver;
+                
+                // Hardware concurrency and device memory
+                Object.defineProperty(navigator, 'hardwareConcurrency', {
+                    get: () => profile.navigator.hardware_concurrency
+                });
+                Object.defineProperty(navigator, 'deviceMemory', {
+                    get: () => profile.navigator.device_memory
+                });
+                
+                // Platform and vendor
+                Object.defineProperty(navigator, 'platform', {
+                    get: () => profile.navigator.platform
+                });
+                Object.defineProperty(navigator, 'vendor', {
+                    get: () => profile.navigator.vendor
+                });
+                
+                // Languages
+                Object.defineProperty(navigator, 'languages', {
+                    get: () => profile.preferred_languages
+                });
+                
+                // Screen properties
+                Object.defineProperties(screen, {
+                    width: { get: () => profile.screen.width },
+                    height: { get: () => profile.screen.height },
+                    colorDepth: { get: () => profile.screen.depth },
+                    pixelDepth: { get: () => profile.screen.depth }
+                });
+                
+                // Advanced WebGL fingerprint
+                const getParameterProxyHandler = {
+                    apply: function(target, thisArg, args) {
+                        const param = args[0];
+                        const gl = thisArg;
+                        
+                        // UNMASKED_VENDOR_WEBGL
+                        if (param === 37445) {
+                            return profile.webgl.vendor;
+                        }
+                        
+                        // UNMASKED_RENDERER_WEBGL
+                        if (param === 37446) {
+                            return profile.webgl.renderer;
+                        }
+                        
+                        return target.apply(thisArg, args);
+                    }
+                };
+                
                 const getParameter = WebGLRenderingContext.prototype.getParameter;
-                WebGLRenderingContext.prototype.getParameter = function(parameter) {
-                    if (parameter === 37445) {
-                        return 'Intel Open Source Technology Center';
-                    }
-                    if (parameter === 37446) {
-                        return 'Mesa DRI Intel(R) HD Graphics (SKL GT2)';
-                    }
-                    return getParameter.apply(this, arguments);
-                };
-            }
-            
-            // Chrome
-            if (evasions.chrome) {
+                WebGLRenderingContext.prototype.getParameter = new Proxy(getParameter, getParameterProxyHandler);
+                
+                // Advanced Chrome runtime
                 window.chrome = {
-                    runtime: {},
-                    webstore: {}
+                    app: {
+                        isInstalled: false,
+                        getDetails: function() { return null; },
+                        getIsInstalled: function() { return false; },
+                        runningState: function() { return 'cannot_run'; }
+                    },
+                    runtime: {
+                        OnInstalledReason: {},
+                        OnRestartRequiredReason: {},
+                        PlatformArch: {},
+                        PlatformNaclArch: {},
+                        PlatformOs: {},
+                        RequestUpdateCheckStatus: {},
+                        connect: function() {},
+                        id: undefined,
+                        reload: function() {}
+                    }
                 };
-            }
-            
-            // Permissions
-            if (evasions.permissions) {
-                const originalQuery = window.navigator.permissions.query;
-                window.navigator.permissions.query = parameters => (
-                    parameters.name === 'notifications' ?
-                        Promise.resolve({ state: Notification.permission }) :
-                        originalQuery(parameters)
-                );
-            }
-        }"""
+                
+                    // Media devices initialization and mocking
+                    navigator.mediaDevices = navigator.mediaDevices || {};
+                    const originalEnumerateDevices = navigator.mediaDevices.enumerateDevices;
+                    navigator.mediaDevices.enumerateDevices = originalEnumerateDevices || (async function() {
+                        const realDevices = originalEnumerateDevices ? await originalEnumerateDevices.apply(this) : [];
+                        const audioInputs = profile.media_devices.audio_inputs;
+                        const audioOutputs = profile.media_devices.audio_outputs;
+                        const videoInputs = profile.media_devices.video_inputs;
+                        
+                        return Array(audioInputs + audioOutputs + videoInputs).fill().map((_, i) => ({
+                            deviceId: `device-${i}-${Math.random().toString(36).substr(2, 9)}`,
+                            groupId: `group-${Math.floor(i/2)}-${Math.random().toString(36).substr(2, 9)}`,
+                            kind: i < audioInputs ? 'audioinput' : i < (audioInputs + audioOutputs) ? 'audiooutput' : 'videoinput',
+                            label: ''
+                        }));
+                    })();
+                
+                // Permissions API
+                const originalQuery = navigator.permissions.query;
+                navigator.permissions.query = async function(params) {
+                    if (params.name === 'notifications') {
+                        return { state: Notification.permission };
+                    }
+                    return originalQuery.call(this, params);
+                };
+                
+                // Do Not Track
+                Object.defineProperty(navigator, 'doNotTrack', {
+                    get: () => profile.do_not_track
+                });
+                
+            }""",
+            profile_manager.current_profile
         )
 
         for attempt in range(max_retries):

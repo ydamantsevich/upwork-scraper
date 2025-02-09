@@ -17,32 +17,122 @@ class BrowserProfileManager:
         self.requests_count = 0
         self.parent_job_count = 0
 
-    def _generate_base_profile(self) -> Dict[str, Union[Dict, str]]:
-        """Генерирует базовый профиль браузера"""
-        chrome_versions = ["119.0.0.0", "120.0.0.0", "121.0.0.0", "122.0.0.0"]
-        platforms = [
-            "Windows NT 10.0; Win64; x64",
-            "Macintosh; Intel Mac OS X 10_15_7",
-            "X11; Linux x86_64",
-            "Windows NT 10.0; WOW64",
-            "Macintosh; Intel Mac OS X 10_15",
-            "X11; Ubuntu; Linux x86_64",
-        ]
-        common_widths = [1366, 1440, 1536, 1920, 2560]
-        common_heights = [768, 900, 864, 1080, 1440]
-        timezones = ["America/New_York", "Europe/London", "Europe/Berlin", "Asia/Tokyo"]
-        locales = ["en-US", "en-GB", "en-CA", "en-AU"]
-        color_schemes = ["light", "dark"]
+    def _generate_base_profile(self) -> Dict[str, Union[Dict, str, int, float, List[str]]]:
+        """Генерирует расширенный профиль браузера с реалистичными параметрами"""
+        # Realistic browser versions and configurations
+        chrome_versions = {
+            "119.0.0.0": ["537.36", "99.0.4844.51"],
+            "120.0.0.0": ["537.36", "100.0.4896.75"],
+            "121.0.0.0": ["537.36", "101.0.4951.41"],
+            "122.0.0.0": ["537.36", "102.0.5005.61"],
+        }
+        chosen_chrome = random.choice(list(chrome_versions.items()))
+        chrome_version, (webkit_version, v8_version) = chosen_chrome
 
+        # Platform-specific configurations
+        platform_configs = {
+            "Windows NT 10.0; Win64; x64": {
+                "os": "Windows",
+                "memory": [4, 8, 16, 32],
+                "cores": [2, 4, 6, 8, 12],
+                "screen_sizes": [(1920, 1080), (2560, 1440), (1366, 768), (1536, 864)],
+                "gpu_vendors": ["NVIDIA", "AMD", "Intel"],
+                "gpu_models": {
+                    "NVIDIA": ["GeForce RTX 3060", "GeForce GTX 1660", "GeForce RTX 2070"],
+                    "AMD": ["Radeon RX 6600", "Radeon RX 5700", "Radeon RX 580"],
+                    "Intel": ["UHD Graphics 630", "Iris Xe Graphics", "HD Graphics 530"],
+                },
+            },
+            "Macintosh; Intel Mac OS X 10_15_7": {
+                "os": "MacOS",
+                "memory": [8, 16, 32],
+                "cores": [4, 6, 8, 10],
+                "screen_sizes": [(2560, 1600), (1440, 900), (1680, 1050)],
+                "gpu_vendors": ["Apple", "AMD"],
+                "gpu_models": {
+                    "Apple": ["M1", "M2", "M1 Pro"],
+                    "AMD": ["Radeon Pro 5500M", "Radeon Pro 5600M"],
+                },
+            },
+            "X11; Linux x86_64": {
+                "os": "Linux",
+                "memory": [4, 8, 16],
+                "cores": [2, 4, 6, 8],
+                "screen_sizes": [(1920, 1080), (1366, 768), (1440, 900)],
+                "gpu_vendors": ["NVIDIA", "AMD", "Intel"],
+                "gpu_models": {
+                    "NVIDIA": ["GeForce GTX 1650", "GeForce GTX 1050"],
+                    "AMD": ["Radeon RX 550", "Radeon RX 560"],
+                    "Intel": ["HD Graphics 620", "UHD Graphics 620"],
+                },
+            },
+        }
+
+        # Select platform and its configuration
+        platform = random.choice(list(platform_configs.keys()))
+        config = platform_configs[platform]
+        
+        # Generate consistent screen and viewport sizes
+        screen_size = random.choice(config["screen_sizes"])
+        viewport_width = min(screen_size[0] - random.randint(20, 100), screen_size[0])
+        viewport_height = min(screen_size[1] - random.randint(50, 150), screen_size[1])
+
+        # Select GPU configuration
+        gpu_vendor = random.choice(config["gpu_vendors"])
+        gpu_model = random.choice(config["gpu_models"][gpu_vendor])
+
+        # Generate consistent system configuration
+        memory = random.choice(config["memory"])
+        cores = random.choice(config["cores"])
+
+        # Timezone and language settings based on geolocation
+        timezone_locale_pairs = {
+            "America/New_York": ["en-US"],
+            "Europe/London": ["en-GB"],
+            "Europe/Berlin": ["de-DE", "en-DE"],
+            "Europe/Paris": ["fr-FR", "en-FR"],
+            "Asia/Tokyo": ["ja-JP", "en-JP"],
+            "Australia/Sydney": ["en-AU"],
+            "Europe/Moscow": ["ru-RU", "en-RU"],
+            "Asia/Shanghai": ["zh-CN", "en-CN"],
+        }
+        timezone = random.choice(list(timezone_locale_pairs.keys()))
+        locale = random.choice(timezone_locale_pairs[timezone])
+
+        # Build the complete profile
         return {
             "viewport": {
-                "width": random.choice(common_widths),
-                "height": random.choice(common_heights),
+                "width": viewport_width,
+                "height": viewport_height,
             },
-            "user_agent": f"Mozilla/5.0 ({random.choice(platforms)}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{random.choice(chrome_versions)} Safari/537.36",
-            "timezone": random.choice(timezones),
-            "locale": random.choice(locales),
-            "color_scheme": random.choice(color_schemes),
+            "screen": {
+                "width": screen_size[0],
+                "height": screen_size[1],
+                "depth": random.choice([24, 32]),
+            },
+            "user_agent": f"Mozilla/5.0 ({platform}) AppleWebKit/{webkit_version} (KHTML, like Gecko) Chrome/{chrome_version} Safari/{webkit_version}",
+            "navigator": {
+                "hardware_concurrency": cores,
+                "device_memory": memory,
+                "platform": config["os"].lower(),
+                "vendor": "Google Inc.",
+                "max_touch_points": 0 if random.random() > 0.2 else random.choice([1, 2, 5, 10]),
+            },
+            "webgl": {
+                "vendor": gpu_vendor,
+                "renderer": f"{gpu_vendor} {gpu_model}",
+                "version": chrome_version,
+            },
+            "media_devices": {
+                "audio_inputs": random.randint(1, 3),
+                "audio_outputs": random.randint(1, 4),
+                "video_inputs": random.randint(0, 2),
+            },
+            "timezone": timezone,
+            "locale": locale,
+            "color_scheme": random.choice(["light", "dark"]),
+            "preferred_languages": [locale, "en"] if locale != "en-US" else ["en-US"],
+            "do_not_track": random.choice([0, 1]),
         }
 
     def _should_rotate(self) -> bool:

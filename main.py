@@ -17,13 +17,27 @@ from playwright.sync_api import sync_playwright
 load_dotenv()
 
 
-def get_random_delay(min_delay, max_delay):
-    """Get a random delay with some gaussian distribution"""
-    # Use gaussian distribution for more natural timing
-    mu = (min_delay + max_delay) / 2
-    sigma = (max_delay - min_delay) / 6  # 99.7% of values within min/max
+def get_random_delay(min_delay, max_delay, behavior="normal"):
+    """Get a random delay with various distribution patterns"""
+    if behavior == "quick":
+        # Quick actions like mouse movements
+        mu = min_delay + (max_delay - min_delay) * 0.2
+        sigma = (max_delay - min_delay) / 8
+    elif behavior == "reading":
+        # Longer delays for content reading
+        mu = min_delay + (max_delay - min_delay) * 0.7
+        sigma = (max_delay - min_delay) / 4
+    else:  # normal
+        # Standard delays for regular actions
+        mu = (min_delay + max_delay) / 2
+        sigma = (max_delay - min_delay) / 6
+
+    # Add occasional longer pauses
+    if random.random() < 0.1:  # 10% chance
+        mu *= 1.5
+        sigma *= 1.2
+
     delay = random.gauss(mu, sigma)
-    # Ensure delay stays within bounds
     return max(min_delay, min(max_delay, delay))
 
 
@@ -127,19 +141,39 @@ def get_cookies():
 
 
 def get_proxy():
-    """Get proxy configuration from environment variables"""
+    """Get proxy configuration with rotation support"""
+    # Primary proxy
     proxy_host = os.getenv("PROXY_HOST")
     proxy_port = os.getenv("PROXY_PORT")
     proxy_username = os.getenv("PROXY_USERNAME")
     proxy_password = os.getenv("PROXY_PASSWORD")
 
+    # Backup proxies (comma-separated lists)
+    backup_hosts = os.getenv("BACKUP_PROXY_HOSTS", "").split(",")
+    backup_ports = os.getenv("BACKUP_PROXY_PORTS", "").split(",")
+    backup_usernames = os.getenv("BACKUP_PROXY_USERNAMES", "").split(",")
+    backup_passwords = os.getenv("BACKUP_PROXY_PASSWORDS", "").split(",")
+
+    # Add primary proxy to rotation if available
+    proxies = []
     if all([proxy_host, proxy_port, proxy_username, proxy_password]):
-        return {
-            "server": f"http://{proxy_host}:{proxy_port}",
-            "username": proxy_username,
-            "password": proxy_password,
-        }
-    return None
+        proxies.append({
+            "server": f"http://{proxy_host.strip()}:{proxy_port.strip()}",
+            "username": proxy_username.strip(),
+            "password": proxy_password.strip(),
+        })
+
+    # Add backup proxies if available
+    for i in range(min(len(backup_hosts), len(backup_ports), len(backup_usernames), len(backup_passwords))):
+        if all([backup_hosts[i], backup_ports[i], backup_usernames[i], backup_passwords[i]]):
+            proxies.append({
+                "server": f"http://{backup_hosts[i].strip()}:{backup_ports[i].strip()}",
+                "username": backup_usernames[i].strip(),
+                "password": backup_passwords[i].strip(),
+            })
+
+    # Return random proxy from available ones
+    return random.choice(proxies) if proxies else None
 
 
 def save_to_csv(jobs_data):
@@ -174,63 +208,106 @@ def process_in_progress_jobs(csv_filename):
     profile_manager = BrowserProfileManager(stability_mode)
     print(f"Using {stability_mode} stability mode for browser profiles")
 
+    # Session management settings
+    max_jobs_per_session = int(os.getenv("MAX_JOBS_PER_SESSION", "10"))
+    session_cooldown = int(os.getenv("SESSION_COOLDOWN", "300"))  # 5 minutes default
+    jobs_processed = 0
+    total_errors = 0
+    max_consecutive_errors = int(os.getenv("MAX_CONSECUTIVE_ERRORS", "3"))
+    consecutive_errors = 0
+
     print("\nProcessing in-progress jobs from CSV...")
     with open(csv_filename, "r", encoding="utf-8") as file:
         reader = csv.DictReader(file)
         rows = list(reader)
 
-        with sync_playwright() as p:
-            browser = p.chromium.launch(
-                headless=True,
-                args=[
-                    "--disable-blink-features=AutomationControlled",
-                    "--no-sandbox",
-                ],
-                proxy=get_proxy()
-            )
+        while rows and consecutive_errors < max_consecutive_errors:
+            with sync_playwright() as p:
+                proxy = get_proxy()
+                print(f"\nStarting new session with proxy: {proxy['server'] if proxy else 'No proxy'}")
+                
+                browser = p.chromium.launch(
+                    headless=True,
+                    args=[
+                        "--disable-blink-features=AutomationControlled",
+                        "--no-sandbox",
+                    ],
+                    proxy=proxy
+                )
 
-            for row in rows:
-                if row["in_progress_links"]:
-                    parent_url = row["url"]
-                    in_progress_links = row["in_progress_links"].split(" ; ")
-                    print(f"\nProcessing in-progress jobs for {parent_url}")
+                session_rows = rows[:max_jobs_per_session]
+                rows = rows[max_jobs_per_session:]
+                
+                for row in session_rows:
+                    if row["in_progress_links"]:
+                        parent_url = row["url"]
+                        in_progress_links = row["in_progress_links"].split(" ; ")
+                        print(f"\nProcessing in-progress jobs for {parent_url}")
 
-                    for i, link in enumerate(in_progress_links, 1):
-                        if not link:
-                            continue
-                        print(
-                            f"Processing in-progress job {i}/{len(in_progress_links)}"
-                        )
-
-                        try:
-                            # Get job details with retries and timeouts
-                            title, description = scrape_in_progress_job(
-                                link, cookies, browser, profile_manager
+                        for i, link in enumerate(in_progress_links, 1):
+                            if not link:
+                                continue
+                            print(
+                                f"Processing in-progress job {i}/{len(in_progress_links)}"
                             )
-                            if (
-                                title
-                                and description
-                                and title != "Title not found"
-                                and description != "Description not found"
-                            ):
-                                # Update CSV with details
-                                update_csv_with_details(
-                                    parent_url, link, title, description, csv_filename
+
+                            try:
+                                # Get job details with retries and timeouts
+                                title, description = scrape_in_progress_job(
+                                    link, cookies, browser, profile_manager
                                 )
-                                print(f"Updated details for {link}")
-                            else:
-                                print(f"Failed to get valid details for {link}")
+                                if (
+                                    title
+                                    and description
+                                    and title != "Title not found"
+                                    and description != "Description not found"
+                                ):
+                                    # Update CSV with details
+                                    update_csv_with_details(
+                                        parent_url, link, title, description, csv_filename
+                                    )
+                                    print(f"Updated details for {link}")
+                                    consecutive_errors = 0  # Reset error counter on success
+                                    jobs_processed += 1
+                                else:
+                                    print(f"Failed to get valid details for {link}")
+                                    consecutive_errors += 1
+                                    total_errors += 1
 
-                            # Add randomized delay between jobs
-                            time.sleep(get_random_delay(15, 30))
+                                # Add variable delays based on content length
+                                content_length = len(description) if description else 0
+                                if content_length > 1000:
+                                    # Longer delay for longer content (simulating reading)
+                                    time.sleep(get_random_delay(20, 40, "reading"))
+                                else:
+                                    # Shorter delay for brief content
+                                    time.sleep(get_random_delay(10, 25, "normal"))
 
-                        except Exception as e:
-                            print(f"Error processing in-progress job {link}: {e}")
-                            continue
+                            except Exception as e:
+                                print(f"Error processing in-progress job {link}: {e}")
+                                consecutive_errors += 1
+                                total_errors += 1
+                                continue
 
-                    # Add longer randomized delay between parent jobs
-                    time.sleep(get_random_delay(30, 60))
-            browser.close()
+                            # Check if we need to stop due to errors
+                            if consecutive_errors >= max_consecutive_errors:
+                                print(f"\nStopping due to {consecutive_errors} consecutive errors")
+                                break
+
+                        # Add variable delays between parent jobs with occasional longer pauses
+                        if random.random() < 0.2:  # 20% chance for a longer break
+                            time.sleep(get_random_delay(45, 90, "reading"))
+                        else:
+                            time.sleep(get_random_delay(25, 50, "normal"))
+
+                browser.close()
+                
+                # Session cooldown if there are more jobs to process
+                if rows:
+                    cooldown_time = get_random_delay(session_cooldown, session_cooldown * 1.5, "reading")
+                    print(f"\nSession complete. Cooling down for {int(cooldown_time)} seconds...")
+                    print(f"Jobs processed: {jobs_processed}, Errors: {total_errors}")
+                    time.sleep(cooldown_time)
 
 
 def scrape_parent_jobs():
@@ -249,6 +326,14 @@ def scrape_parent_jobs():
     profile_manager = BrowserProfileManager(stability_mode)
     print(f"Using {stability_mode} stability mode for browser profiles")
 
+    # Session management settings
+    max_jobs_per_session = int(os.getenv("MAX_JOBS_PER_SESSION", "10"))
+    session_cooldown = int(os.getenv("SESSION_COOLDOWN", "300"))  # 5 minutes default
+    jobs_processed = 0
+    total_errors = 0
+    max_consecutive_errors = int(os.getenv("MAX_CONSECUTIVE_ERRORS", "3"))
+    consecutive_errors = 0
+
     try:
         # Collect all job links
         print("\nGetting job list...")
@@ -264,29 +349,63 @@ def scrape_parent_jobs():
 
         # List to store all jobs
         jobs_data = []
+        remaining_links = job_links.copy()
 
-        # Collect parent jobs and in-progress links
-        print("\nCollecting parent job information and in-progress links...")
-        for i, link in enumerate(job_links, 1):
-            print(f"\nProcessing parent job {i}/{len(job_links)}...")
-            try:
-                # Get parent job details and in-progress links
-                job_data = scrape_parent_job(link, cookies)
-                if not job_data:
-                    print(f"Failed to get parent job details for {link}")
+        # Process jobs in sessions
+        while remaining_links and consecutive_errors < max_consecutive_errors:
+            session_links = remaining_links[:max_jobs_per_session]
+            remaining_links = remaining_links[max_jobs_per_session:]
+
+            proxy = get_proxy()
+            print(f"\nStarting new session with proxy: {proxy['server'] if proxy else 'No proxy'}")
+
+            # Collect parent jobs and in-progress links for this session
+            print("\nCollecting parent job information and in-progress links...")
+            for i, link in enumerate(session_links, 1):
+                print(f"\nProcessing parent job {i}/{len(session_links)}...")
+                try:
+                    # Get parent job details and in-progress links
+                    job_data = scrape_parent_job(link, cookies, profile_manager)
+                    if job_data:
+                        jobs_data.append(job_data)
+                        consecutive_errors = 0  # Reset error counter on success
+                        jobs_processed += 1
+                        print(f"Successfully processed job: {job_data.get('title', 'No title')}")
+                    else:
+                        print(f"Failed to get parent job details for {link}")
+                        consecutive_errors += 1
+                        total_errors += 1
+
+                    # Add variable delays between jobs
+                    if job_data and len(job_data.get('description', '')) > 1000:
+                        # Longer delay for jobs with more content
+                        time.sleep(get_random_delay(15, 30, "reading"))
+                    else:
+                        time.sleep(get_random_delay(10, 20, "normal"))
+
+                except Exception as e:
+                    print(f"Error processing parent job {link}: {e}")
+                    consecutive_errors += 1
+                    total_errors += 1
                     continue
 
-                jobs_data.append(job_data)
+                # Check if we need to stop due to errors
+                if consecutive_errors >= max_consecutive_errors:
+                    print(f"\nStopping due to {consecutive_errors} consecutive errors")
+                    break
 
-                # Add randomized delay between parent jobs
-                time.sleep(get_random_delay(10, 20))
-
-            except Exception as e:
-                print(f"Error processing parent job {link}: {e}")
-                continue
+            # Session cooldown if there are more jobs to process
+            if remaining_links:
+                cooldown_time = get_random_delay(session_cooldown, session_cooldown * 1.5, "reading")
+                print(f"\nSession complete. Cooling down for {int(cooldown_time)} seconds...")
+                print(f"Jobs processed: {jobs_processed}, Errors: {total_errors}")
+                time.sleep(cooldown_time)
 
         # Save data to CSV
         csv_filename = save_to_csv(jobs_data)
+        print(f"\nFinal Statistics:")
+        print(f"Total jobs processed: {jobs_processed}")
+        print(f"Total errors: {total_errors}")
         return csv_filename
 
     except Exception as e:

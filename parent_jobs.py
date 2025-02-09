@@ -70,61 +70,118 @@ def scrape_parent_job_links(cookies=None, profile_manager=None):
             if cookies:
                 context.add_cookies(cookies)
 
-            # Add browser fingerprint evasion
+            # Add advanced browser fingerprint evasion
             page.evaluate(
-                """() => {
-                const evasions = {
-                    webdriver: undefined,
-                    webGL: true,
-                    chrome: {
-                        runtime: true,
-                        webstore: true
-                    },
-                    permissions: {
-                        query: true
-                    },
-                    navigator: {
-                        languages: ['en-US', 'en']
-                    }
-                };
-                
-                // WebDriver
-                Object.defineProperty(navigator, 'webdriver', {
-                    get: () => evasions.webdriver
-                });
-                
-                // WebGL
-                if (evasions.webGL) {
+                """(profile) => {
+                    // Advanced WebDriver evasion
+                    delete Object.getPrototypeOf(navigator).webdriver;
+                    
+                    // Hardware concurrency and device memory
+                    Object.defineProperty(navigator, 'hardwareConcurrency', {
+                        get: () => profile.navigator.hardware_concurrency
+                    });
+                    Object.defineProperty(navigator, 'deviceMemory', {
+                        get: () => profile.navigator.device_memory
+                    });
+                    
+                    // Platform and vendor
+                    Object.defineProperty(navigator, 'platform', {
+                        get: () => profile.navigator.platform
+                    });
+                    Object.defineProperty(navigator, 'vendor', {
+                        get: () => profile.navigator.vendor
+                    });
+                    
+                    // Languages
+                    Object.defineProperty(navigator, 'languages', {
+                        get: () => profile.preferred_languages
+                    });
+                    
+                    // Screen properties
+                    Object.defineProperties(screen, {
+                        width: { get: () => profile.screen.width },
+                        height: { get: () => profile.screen.height },
+                        colorDepth: { get: () => profile.screen.depth },
+                        pixelDepth: { get: () => profile.screen.depth }
+                    });
+                    
+                    // Advanced WebGL fingerprint
+                    const getParameterProxyHandler = {
+                        apply: function(target, thisArg, args) {
+                            const param = args[0];
+                            const gl = thisArg;
+                            
+                            // UNMASKED_VENDOR_WEBGL
+                            if (param === 37445) {
+                                return profile.webgl.vendor;
+                            }
+                            
+                            // UNMASKED_RENDERER_WEBGL
+                            if (param === 37446) {
+                                return profile.webgl.renderer;
+                            }
+                            
+                            return target.apply(thisArg, args);
+                        }
+                    };
+                    
                     const getParameter = WebGLRenderingContext.prototype.getParameter;
-                    WebGLRenderingContext.prototype.getParameter = function(parameter) {
-                        if (parameter === 37445) {
-                            return 'Intel Open Source Technology Center';
-                        }
-                        if (parameter === 37446) {
-                            return 'Mesa DRI Intel(R) HD Graphics (SKL GT2)';
-                        }
-                        return getParameter.apply(this, arguments);
-                    };
-                }
-                
-                // Chrome
-                if (evasions.chrome) {
+                    WebGLRenderingContext.prototype.getParameter = new Proxy(getParameter, getParameterProxyHandler);
+                    
+                    // Advanced Chrome runtime
                     window.chrome = {
-                        runtime: {},
-                        webstore: {}
+                        app: {
+                            isInstalled: false,
+                            getDetails: function() { return null; },
+                            getIsInstalled: function() { return false; },
+                            runningState: function() { return 'cannot_run'; }
+                        },
+                        runtime: {
+                            OnInstalledReason: {},
+                            OnRestartRequiredReason: {},
+                            PlatformArch: {},
+                            PlatformNaclArch: {},
+                            PlatformOs: {},
+                            RequestUpdateCheckStatus: {},
+                            connect: function() {},
+                            id: undefined,
+                            reload: function() {}
+                        }
                     };
-                }
-                
-                // Permissions
-                if (evasions.permissions) {
-                    const originalQuery = window.navigator.permissions.query;
-                    window.navigator.permissions.query = parameters => (
-                        parameters.name === 'notifications' ?
-                            Promise.resolve({ state: Notification.permission }) :
-                            originalQuery(parameters)
-                    );
-                }
-            }"""
+                    
+                    // Media devices initialization and mocking
+                    navigator.mediaDevices = navigator.mediaDevices || {};
+                    const originalEnumerateDevices = navigator.mediaDevices.enumerateDevices;
+                    navigator.mediaDevices.enumerateDevices = originalEnumerateDevices || (async function() {
+                        const realDevices = originalEnumerateDevices ? await originalEnumerateDevices.apply(this) : [];
+                        const audioInputs = profile.media_devices.audio_inputs;
+                        const audioOutputs = profile.media_devices.audio_outputs;
+                        const videoInputs = profile.media_devices.video_inputs;
+                        
+                        return Array(audioInputs + audioOutputs + videoInputs).fill().map((_, i) => ({
+                            deviceId: `device-${i}-${Math.random().toString(36).substr(2, 9)}`,
+                            groupId: `group-${Math.floor(i/2)}-${Math.random().toString(36).substr(2, 9)}`,
+                            kind: i < audioInputs ? 'audioinput' : i < (audioInputs + audioOutputs) ? 'audiooutput' : 'videoinput',
+                            label: ''
+                        }));
+                    })();
+                    
+                    // Permissions API
+                    const originalQuery = navigator.permissions.query;
+                    navigator.permissions.query = async function(params) {
+                        if (params.name === 'notifications') {
+                            return { state: Notification.permission };
+                        }
+                        return originalQuery.call(this, params);
+                    };
+                    
+                    // Do Not Track
+                    Object.defineProperty(navigator, 'doNotTrack', {
+                        get: () => profile.do_not_track
+                    });
+                    
+                }""",
+                profile_manager.current_profile
             )
 
             time.sleep(random.uniform(3.0, 5.0))
@@ -254,61 +311,118 @@ def scrape_parent_job(link, cookies=None, profile_manager=None, max_retries=3):
             if cookies:
                 context.add_cookies(cookies)
 
-            # Add browser fingerprint evasion
+            # Add advanced browser fingerprint evasion
             page.evaluate(
-                """() => {
-                const evasions = {
-                    webdriver: undefined,
-                    webGL: true,
-                    chrome: {
-                        runtime: true,
-                        webstore: true
-                    },
-                    permissions: {
-                        query: true
-                    },
-                    navigator: {
-                        languages: ['en-US', 'en']
-                    }
-                };
-                
-                // WebDriver
-                Object.defineProperty(navigator, 'webdriver', {
-                    get: () => evasions.webdriver
-                });
-                
-                // WebGL
-                if (evasions.webGL) {
+                """(profile) => {
+                    // Advanced WebDriver evasion
+                    delete Object.getPrototypeOf(navigator).webdriver;
+                    
+                    // Hardware concurrency and device memory
+                    Object.defineProperty(navigator, 'hardwareConcurrency', {
+                        get: () => profile.navigator.hardware_concurrency
+                    });
+                    Object.defineProperty(navigator, 'deviceMemory', {
+                        get: () => profile.navigator.device_memory
+                    });
+                    
+                    // Platform and vendor
+                    Object.defineProperty(navigator, 'platform', {
+                        get: () => profile.navigator.platform
+                    });
+                    Object.defineProperty(navigator, 'vendor', {
+                        get: () => profile.navigator.vendor
+                    });
+                    
+                    // Languages
+                    Object.defineProperty(navigator, 'languages', {
+                        get: () => profile.preferred_languages
+                    });
+                    
+                    // Screen properties
+                    Object.defineProperties(screen, {
+                        width: { get: () => profile.screen.width },
+                        height: { get: () => profile.screen.height },
+                        colorDepth: { get: () => profile.screen.depth },
+                        pixelDepth: { get: () => profile.screen.depth }
+                    });
+                    
+                    // Advanced WebGL fingerprint
+                    const getParameterProxyHandler = {
+                        apply: function(target, thisArg, args) {
+                            const param = args[0];
+                            const gl = thisArg;
+                            
+                            // UNMASKED_VENDOR_WEBGL
+                            if (param === 37445) {
+                                return profile.webgl.vendor;
+                            }
+                            
+                            // UNMASKED_RENDERER_WEBGL
+                            if (param === 37446) {
+                                return profile.webgl.renderer;
+                            }
+                            
+                            return target.apply(thisArg, args);
+                        }
+                    };
+                    
                     const getParameter = WebGLRenderingContext.prototype.getParameter;
-                    WebGLRenderingContext.prototype.getParameter = function(parameter) {
-                        if (parameter === 37445) {
-                            return 'Intel Open Source Technology Center';
-                        }
-                        if (parameter === 37446) {
-                            return 'Mesa DRI Intel(R) HD Graphics (SKL GT2)';
-                        }
-                        return getParameter.apply(this, arguments);
-                    };
-                }
-                
-                // Chrome
-                if (evasions.chrome) {
+                    WebGLRenderingContext.prototype.getParameter = new Proxy(getParameter, getParameterProxyHandler);
+                    
+                    // Advanced Chrome runtime
                     window.chrome = {
-                        runtime: {},
-                        webstore: {}
+                        app: {
+                            isInstalled: false,
+                            getDetails: function() { return null; },
+                            getIsInstalled: function() { return false; },
+                            runningState: function() { return 'cannot_run'; }
+                        },
+                        runtime: {
+                            OnInstalledReason: {},
+                            OnRestartRequiredReason: {},
+                            PlatformArch: {},
+                            PlatformNaclArch: {},
+                            PlatformOs: {},
+                            RequestUpdateCheckStatus: {},
+                            connect: function() {},
+                            id: undefined,
+                            reload: function() {}
+                        }
                     };
-                }
-                
-                // Permissions
-                if (evasions.permissions) {
-                    const originalQuery = window.navigator.permissions.query;
-                    window.navigator.permissions.query = parameters => (
-                        parameters.name === 'notifications' ?
-                            Promise.resolve({ state: Notification.permission }) :
-                            originalQuery(parameters)
-                    );
-                }
-            }"""
+                    
+                    // Media devices initialization and mocking
+                    navigator.mediaDevices = navigator.mediaDevices || {};
+                    const originalEnumerateDevices = navigator.mediaDevices.enumerateDevices;
+                    navigator.mediaDevices.enumerateDevices = originalEnumerateDevices || (async function() {
+                        const realDevices = originalEnumerateDevices ? await originalEnumerateDevices.apply(this) : [];
+                        const audioInputs = profile.media_devices.audio_inputs;
+                        const audioOutputs = profile.media_devices.audio_outputs;
+                        const videoInputs = profile.media_devices.video_inputs;
+                        
+                        return Array(audioInputs + audioOutputs + videoInputs).fill().map((_, i) => ({
+                            deviceId: `device-${i}-${Math.random().toString(36).substr(2, 9)}`,
+                            groupId: `group-${Math.floor(i/2)}-${Math.random().toString(36).substr(2, 9)}`,
+                            kind: i < audioInputs ? 'audioinput' : i < (audioInputs + audioOutputs) ? 'audiooutput' : 'videoinput',
+                            label: ''
+                        }));
+                    });
+                    
+                    // Permissions API
+                    const originalQuery = navigator.permissions.query;
+                    navigator.permissions.query = async function(params) {
+                        if (params.name === 'notifications') {
+                            return { state: Notification.permission };
+                        }
+                        return originalQuery.call(this, params);
+                    };
+                    
+                    // Do Not Track
+                    Object.defineProperty(navigator, 'doNotTrack', {
+                        get: () => profile.do_not_track
+                    });
+                    
+                }""",
+                profile_manager.current_profile
             )
 
             time.sleep(random.uniform(3.0, 5.0))
