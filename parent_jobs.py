@@ -468,7 +468,7 @@ def scrape_parent_job(link, cookies=None, profile_manager=None, max_retries=3):
                     in_progress_links = find_in_progress_links(page, max_retries=3)
 
                     job_data = {
-                        "url": f"https://www.upwork.com{link}",
+                        "link": f"https://www.upwork.com{link}",
                         "title": title,
                         "description": description,
                         "location": location,

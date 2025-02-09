@@ -38,7 +38,7 @@ def get_random_delay(min_delay, max_delay, behavior="normal"):
         sigma *= 1.2
 
     delay = random.gauss(mu, sigma)
-    return max(min_delay, min(max_delay, delay))
+    return max(0.1, min(max_delay, delay))
 
 
 def get_cookies():
@@ -240,7 +240,7 @@ def process_in_progress_jobs(csv_filename):
                 
                 for row in session_rows:
                     if row["in_progress_links"]:
-                        parent_url = row["url"]
+                        parent_url = row["link"]
                         in_progress_links = row["in_progress_links"].split(" ; ")
                         print(f"\nProcessing in-progress jobs for {parent_url}")
 

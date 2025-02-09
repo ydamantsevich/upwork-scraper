@@ -33,20 +33,31 @@ def generate_bezier_curve(start, end, num_points=10):
     """Generate a natural bezier curve for mouse movement"""
     control_point1 = (
         start[0] + (end[0] - start[0]) * random.uniform(0.2, 0.4),
-        start[1] + random.uniform(-100, 100)
+        start[1] + random.uniform(-100, 100),
     )
     control_point2 = (
         start[0] + (end[0] - start[0]) * random.uniform(0.6, 0.8),
-        end[1] + random.uniform(-100, 100)
+        end[1] + random.uniform(-100, 100),
     )
-    
+
     points = []
     for t in [i / (num_points - 1) for i in range(num_points)]:
         # Bezier curve formula
-        x = (1-t)**3 * start[0] + 3*(1-t)**2 * t * control_point1[0] + 3*(1-t) * t**2 * control_point2[0] + t**3 * end[0]
-        y = (1-t)**3 * start[1] + 3*(1-t)**2 * t * control_point1[1] + 3*(1-t) * t**2 * control_point2[1] + t**3 * end[1]
+        x = (
+            (1 - t) ** 3 * start[0]
+            + 3 * (1 - t) ** 2 * t * control_point1[0]
+            + 3 * (1 - t) * t**2 * control_point2[0]
+            + t**3 * end[0]
+        )
+        y = (
+            (1 - t) ** 3 * start[1]
+            + 3 * (1 - t) ** 2 * t * control_point1[1]
+            + 3 * (1 - t) * t**2 * control_point2[1]
+            + t**3 * end[1]
+        )
         points.append((int(x), int(y)))
     return points
+
 
 def natural_scroll_pattern():
     """Generate natural scrolling patterns"""
@@ -58,57 +69,58 @@ def natural_scroll_pattern():
         # Long scroll followed by scroll up correction
         lambda: [random.randint(400, 800), random.randint(-100, -50)],
         # Variable speed scrolling
-        lambda: [random.randint(100, 300) for _ in range(random.randint(2, 5))]
+        lambda: [random.randint(100, 300) for _ in range(random.randint(2, 5))],
     ]
     return random.choice(patterns)()
+
 
 def simulate_human_behavior(page):
     """Simulate highly realistic human behavior with natural patterns"""
     viewport_width = page.viewport_size["width"]
     viewport_height = page.viewport_size["height"]
     current_mouse_pos = {"x": 0, "y": 0}  # Track mouse position
-    
+
     # Initial page load pause with slight variation
     time.sleep(random.normalvariate(2.5, 0.5))
-    
+
     # Simulate initial page scan
     start_pos = (random.randint(0, viewport_width), random.randint(50, 150))
     page.mouse.move(start_pos[0], start_pos[1])
     current_mouse_pos["x"], current_mouse_pos["y"] = start_pos
     time.sleep(random.normalvariate(0.5, 0.1))
-    
+
     # Natural mouse movements using bezier curves
     for _ in range(random.randint(2, 5)):
         end_pos = (
             random.randint(100, viewport_width - 100),
-            random.randint(100, viewport_height - 100)
+            random.randint(100, viewport_height - 100),
         )
         points = generate_bezier_curve(
-            (current_mouse_pos["x"], current_mouse_pos["y"]), 
-            end_pos, 
-            num_points=random.randint(8, 15)
+            (current_mouse_pos["x"], current_mouse_pos["y"]),
+            end_pos,
+            num_points=random.randint(8, 15),
         )
-        
+
         for point in points:
             page.mouse.move(point[0], point[1])
             current_mouse_pos["x"], current_mouse_pos["y"] = point
             # Add micro-delays for more natural movement
             time.sleep(random.normalvariate(0.05, 0.01))
-            
+
         # Occasional mouse acceleration/deceleration
         if random.random() < 0.3:
             time.sleep(random.normalvariate(0.2, 0.05))
-        
+
         # Simulate reading pause
         if random.random() < 0.4:
             time.sleep(random.normalvariate(1.0, 0.2))
-    
+
     # Natural scrolling behavior
     scroll_count = random.randint(2, 5)
     for _ in range(scroll_count):
         # Get scroll pattern
         scroll_amounts = natural_scroll_pattern()
-        
+
         for amount in scroll_amounts:
             # Add slight mouse movement during scroll
             if random.random() < 0.3:
@@ -119,15 +131,15 @@ def simulate_human_behavior(page):
                 new_y = max(0, min(new_y, viewport_height))
                 page.mouse.move(new_x, new_y)
                 current_mouse_pos["x"], current_mouse_pos["y"] = new_x, new_y
-            
+
             page.mouse.wheel(0, amount)
             # Variable scroll speed
             time.sleep(random.normalvariate(0.3, 0.1))
-            
+
             # Simulate content scanning pause
             if random.random() < 0.3:
                 time.sleep(random.normalvariate(0.8, 0.2))
-    
+
     # Occasional highlight/select text behavior
     if random.random() < 0.2:
         start_x = current_mouse_pos["x"]
@@ -191,9 +203,11 @@ def find_in_progress_links(page, max_retries=3):
             for job in in_progress_jobs:
                 url = job.get_attribute("href")
                 if url and url not in in_progress_links:
-                    in_progress_links.append(url)
+                    in_progress_links.append(f"https://www.upwork.com{url}")
                     print(f"Found in-progress link: {url}")
-                    time.sleep(random.uniform(2.0, 3.0))  # Add delay between collecting links
+                    time.sleep(
+                        random.uniform(2.0, 3.0)
+                    )  # Add delay between collecting links
 
             if in_progress_links:
                 break
@@ -214,7 +228,9 @@ def find_in_progress_links(page, max_retries=3):
     return in_progress_links
 
 
-def scrape_in_progress_job(url, cookies, browser=None, profile_manager=None, max_retries=3):
+def scrape_in_progress_job(
+    url, cookies, browser=None, profile_manager=None, max_retries=3
+):
     """Scrape details for a single in-progress job with retries, reusing browser instance"""
     if not browser:
         with sync_playwright() as p:
@@ -385,7 +401,7 @@ def scrape_in_progress_job(url, cookies, browser=None, profile_manager=None, max
                 });
                 
             }""",
-            profile_manager.current_profile
+            profile_manager.current_profile,
         )
 
         for attempt in range(max_retries):
@@ -393,7 +409,7 @@ def scrape_in_progress_job(url, cookies, browser=None, profile_manager=None, max
                 simulate_human_behavior(page)
 
                 response = page.goto(
-                    f"https://www.upwork.com{url}",
+                    f"{url}",
                     wait_until="networkidle",
                     timeout=60000,
                 )
@@ -466,7 +482,7 @@ def update_csv_with_progress_data(parent_url, in_progress_links, csv_filename):
     with open(csv_filename, "r", encoding="utf-8") as file:
         reader = csv.DictReader(file)
         for row in reader:
-            if row["url"] == parent_url:
+            if row["link"] == parent_url:
                 row["in_progress_links"] = (
                     " ; ".join(in_progress_links) if in_progress_links else ""
                 )
@@ -486,7 +502,7 @@ def update_csv_with_details(
     with open(csv_filename, "r", encoding="utf-8") as file:
         reader = csv.DictReader(file)
         for row in reader:
-            if row["url"] == parent_url:
+            if row["link"] == parent_url:
                 titles = (
                     row["in_progress_titles"].split(" ; ")
                     if row["in_progress_titles"]
@@ -507,7 +523,8 @@ def update_csv_with_details(
                     clean_links = [
                         link.replace("https://www.upwork.com", "") for link in links
                     ]
-                    idx = clean_links.index(in_progress_url)
+                    in_progress_url_cleaned = in_progress_url.replace("https://www.upwork.com", "")
+                    idx = clean_links.index(in_progress_url_cleaned)
                     while len(titles) <= idx:
                         titles.append("")
                     while len(descriptions) <= idx:
